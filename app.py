@@ -26,7 +26,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Style CSS pour l'interface utilisateur
+# Style CSS personnalisé pour l'interface utilisateur
 st.markdown(
     """
     <style>
@@ -60,7 +60,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Noms des colonnes de vos capteurs physiques
+# Configuration des colonnes physiques des capteurs
 COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
 COLONNE_CIBLE     = "Puissance_mW"
 FICHIER_EXEMPLE   = "Classeur1.xlsx"
@@ -73,7 +73,7 @@ MODELES_DISPONIBLES = {
     "🔮 ANFIS — Système Neuro-Flou Adaptatif" : "anfis",
 }
 
-# Chargement sécurisé des fichiers de modèles d'IA (Orthographe anglaise 'model')
+# Chargement mis en cache des fichiers de modèles d'IA
 @st.cache_resource(show_spinner="⚙️ Chargement des architectures d'IA…")
 def charger_ressources():
     modeles = {}
@@ -115,20 +115,19 @@ def charger_ressources():
 
     return modeles, scaler
 
-# RECRÉATION STRICTE DE TA LOGIQUE PYTHON SANS DÉCALAGE DE MATRICE
 def preparer_matrice_entrees(df_data: pd.DataFrame, scaler_obj) -> np.ndarray:
-    # 1. Extraction des 3 features requises dans l'ordre exact
     X_base = df_data[COLONNES_REQUISES].values.astype(float)
-    
-    # Remplacement des NaNs par 0 au cas où le fichier contient des cases vides
     if np.any(np.isnan(X_base)):
         X_base = np.nan_to_num(X_base, nan=0.0)
 
-    # 2. Application directe et propre du scaler sur la matrice globale (comme dans ton script)
     if scaler_obj is not None:
         try:
-            X_base = scaler_obj.transform(X_base)
-        except Exception as e:
+            # Tente d'appliquer le scaler sur l'ensemble ou s'adapte s'il n'attend qu'une colonne
+            if hasattr(scaler_obj, "n_features_in_") and scaler_obj.n_features_in_ == 1:
+                X_base = scaler_obj.transform(X_base[:, [0]])
+            else:
+                X_base = scaler_obj.transform(X_base)
+        except Exception:
             pass
             
     return X_base
@@ -154,7 +153,7 @@ with st.sidebar:
     cle_modele = MODELES_DISPONIBLES[nom_modele_selectionne]
     nom_court = nom_modele_selectionne.split("—")[0].strip()
 
-# ── PAGE : ACCUEIL & PRÉSENTATION ──
+# ── PAGE 1 : ACCUEIL & PRÉSENTATION COMPLÈTE RESTAURÉE ──
 if page == "🏠 Accueil & Présentation":
     if os.path.exists("panneau_pv.jpg"):
         st.image("panneau_pv.jpg", caption="Dispositif expérimental d'acquisition", use_container_width=True)
@@ -189,10 +188,18 @@ if page == "🏠 Accueil & Présentation":
             unsafe_allow_html=True
         )
     with col_droite:
-        st.markdown("### 💡 Objectifs")
-        st.markdown("Cette plateforme logicielle permet d'automatiser le traitement du signal et l'analyse de vos capteurs.")
+        st.markdown("### 💡 À propos de cette application")
+        st.markdown(
+            """
+            Cette plateforme logicielle a été conçue pour automatiser l'analyse, le traitement du signal et l'évaluation 
+            de différents modèles mathématiques et d'intelligence artificielle appliqués à la prédiction énergétique.
+            
+            Elle intègre des modèles d'ingénierie avancés permettant de confronter les approches linéaires classiques 
+            (ARX) aux techniques d'apprentissage profond (PMC, GRU, LSTM) ainsi qu'aux systèmes flous (ANFIS).
+            """
+        )
 
-# ── PAGE : IMPORTATION DES DONNÉES ──
+# ── PAGE 2 : IMPORTATION DES DONNÉES ──
 elif page == "📂 Importation des Données":
     st.title("📂 Importation des Données Capteurs")
     fichier_charge = st.file_uploader("Téléverser votre fichier Excel ou CSV :", type=["xlsx", "xls", "csv"])
@@ -213,47 +220,53 @@ elif page == "📂 Importation des Données":
         st.session_state.nom_fichier = FICHIER_EXEMPLE
 
     if st.session_state.donnees is not None:
+        st.markdown(f"### Premières lignes du fichier : `{st.session_state.nom_fichier}`")
         st.dataframe(st.session_state.donnees.head(15), use_container_width=True)
 
-# ── PAGE : ÉVALUATION ET GRAPHES (MÉTRIQUES FIXÉES) ──
+# ── PAGE 3 : ÉVALUATION ET GRAPHES (CORRIGÉE DES DIMENSIONS) ──
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Traitement & Évaluation des Modèles")
     if st.session_state.donnees is None:
         st.warning("⚠️ Veuillez d'abord importer un fichier de données.")
         st.stop()
         
-    # Nettoyage strict pour éviter tout décalage d'index provoquant un mauvais R2
     df = st.session_state.donnees.copy().dropna(subset=COLONNES_REQUISES + [COLONNE_CIBLE])
     
     obj_modele = modeles.get(cle_modele)
     if obj_modele is None:
-        st.error(f"❌ Le modèle binaire '{nom_court}' est introuvable. Vérifiez que le nom du fichier sur votre GitHub est bien '{cle_modele}'.")
+        st.error(f"❌ Le modèle binaire '{nom_court}' est introuvable sur votre instance.")
         st.stop()
 
-    # Alignement strict 3 colonnes -> Scaler -> Inférence
     X_final = preparer_matrice_entrees(df, scaler)
     
     try:
         if cle_modele in ["gru", "lstm"]:
-            # Remodelage 3D classique pour Keras [Echantillons, Pas de temps=1, Features=3]
-            X_3d = np.reshape(X_final, (X_final.shape[0], 1, X_final.shape[1]))
-            y_pred = obj_modele.predict(X_3d, verbose=0).flatten()
+            # Vérification de la dimension d'entrée attendue par la première couche du modèle Keras
+            shape_attendue = obj_modele.input_shape
+            nb_features_attendues = shape_attendue[-1] if shape_attendue else 3
+            
+            if nb_features_attendues == 1:
+                # Si le modèle récurrent n'attend qu'une variable (LDR_Raw uniquement)
+                X_input_rnn = np.reshape(X_final[:, 0], (X_final.shape[0], 1, 1))
+            else:
+                # Si le modèle attend les 3 variables [Echantillons, Pas de temps=1, Features=3]
+                X_input_rnn = np.reshape(X_final, (X_final.shape[0], 1, X_final.shape[1]))
+                
+            y_pred = obj_modele.predict(X_input_rnn, verbose=0).flatten()
         else:
             y_pred = obj_modele.predict(X_final).flatten()
             
         y_pred = np.clip(y_pred, a_min=0, a_max=None)
     except Exception as e:
-        st.error(f"❌ Erreur lors du calcul mathématique : {e}")
+        st.error(f"❌ Erreur lors du calcul mathématique dimensionnel : {e}")
         st.stop()
 
     y_reel = df[COLONNE_CIBLE].values.astype(float)
     
-    # Synchronisation parfaite des tailles de tableaux pour le calcul exact des métriques
     taille_commune = min(len(y_reel), len(y_pred))
     y_reel = y_reel[:taille_commune]
     y_pred = y_pred[:taille_commune]
 
-    # Calcul mathématique pur du traitement du signal (Strictement identique à ton script Python)
     rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
     mae  = mean_absolute_error(y_reel, y_pred)
     r2   = r2_score(y_reel, y_pred)
@@ -264,22 +277,22 @@ elif page == "📊 Évaluation & Graphiques":
     with c2:
         st.markdown(f'<div class="carte-metrique"><div class="valeur">{mae:.2f}</div><div class="label">MAE (mW)</div></div>', unsafe_allow_html=True)
     with c3:
-        st.markdown(f'<div class="carte-metrique"><div class="valeur">{r2:.4f}</div><div class="label">R² (Coefficient de Détermination)</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="carte-metrique"><div class="valeur">{r2:.4f}</div><div class="label">R² (Score Global)</div></div>', unsafe_allow_html=True)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(y=y_reel, name="⚡ Valeur Réelle Mesurée", mode="lines", line=dict(color="#1A73E8")))
     fig.add_trace(go.Scatter(y=y_pred, name=f"🤖 Prédiction {nom_court}", mode="lines", line=dict(color="#FF6B2B", dash="dash")))
     fig.update_layout(
-        title="Comparatif Temporel : Réel vs Modèle d'IA",
+        title="Validation croisée : puissance réelle mesurée vs puissance prédite par l'IA",
         xaxis_title="Points d'échantillonnage",
-        yaxis_title="Puissance (mW)",
+        yaxis_title="Puissance Électrique (mW)",
         hovermode="x unified"
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# ── PAGE : PRÉDICTION FUTURE INTERACTIVE ──
+# ── PAGE 4 : PRÉDICTION FUTURE INTERACTIVE ──
 elif page == "🔮 Prédiction Future":
-    st.title("🔮 Espace Interactif de Test en Temps Réel")
+    st.title("🔮 Simulation sur un Horizon Temporel")
     
     obj_modele = modeles.get(cle_modele)
     if obj_modele is None:
@@ -287,12 +300,11 @@ elif page == "🔮 Prédiction Future":
         st.stop()
 
     mode_test = st.radio(
-        "Choisissez votre mode de test :", 
-        ["🎛️ Curseurs (Sliders)", "⌨️ Saisie libre de valeurs (Vos propres mesures)", "📈 Projections Temporelles (Graphique)"]
+        "Choisissez votre mode d'analyse :", 
+        ["🎛️ Curseurs Dynamiques", "📈 Projections Graphiques"]
     )
     
-    if mode_test == "🎛️ Curseurs (Sliders)":
-        st.markdown("### Ajustez les curseurs pour simuler l'environnement :")
+    if mode_test == "🎛️ Curseurs Dynamiques":
         c1, c2, c3 = st.columns(3)
         with c1: val_ldr = st.slider("Éclairement (LDR_Raw)", 0, 4095, 1500)
         with c2: val_hum = st.slider("Humidité (Hum_%)", 0.0, 100.0, 65.0)
@@ -302,44 +314,34 @@ elif page == "🔮 Prédiction Future":
         X_pt = preparer_matrice_entrees(df_temp, scaler)
         
         if cle_modele in ["gru", "lstm"]:
-            X_pt = np.reshape(X_pt, (1, 1, 3))
-            
-        pred = obj_modele.predict(X_pt).flatten()[0]
-        st.metric(label=f"⚡ Puissance Estimée par {nom_court}", value=f"{max(0.0, pred):.2f} mW")
-
-    elif mode_test == "⌨️ Saisie libre de valeurs (Vos propres mesures)":
-        st.markdown("### Entrez manuellement les valeurs lues sur vos composants :")
-        c1, c2, c3 = st.columns(3)
-        with c1: input_ldr = st.number_input("Entrez la valeur LDR :", min_value=0, max_value=4095, value=1200)
-        with c2: input_hum = st.number_input("Entrez l'Humidité (%) :", min_value=0.0, max_value=100.0, value=70.0)
-        with c3: input_temp = st.number_input("Entrez la Température (°C) :", min_value=-10.0, max_value=60.0, value=22.0)
-        
-        if st.button("🚀 Calculer la puissance instantanée"):
-            df_temp = pd.DataFrame([{"LDR_Raw": input_ldr, "Hum_%": input_hum, "Temp_C": input_temp}])
-            X_pt = preparer_matrice_entrees(df_temp, scaler)
-            
-            if cle_modele in ["gru", "lstm"]:
+            shape_attendue = obj_modele.input_shape
+            if shape_attendue and shape_attendue[-1] == 1:
+                X_pt = np.reshape(X_pt[:, 0], (1, 1, 1))
+            else:
                 X_pt = np.reshape(X_pt, (1, 1, 3))
-                
-            pred = obj_modele.predict(X_pt).flatten()[0]
-            st.success(f"⚡ Puissance instantanée calculée par l'IA : {max(0.0, pred):.2f} mW")
+            
+        pred = obj_modele.predict(X_pt, verbose=0).flatten()[0]
+        st.metric(label=f"⚡ Puissance Estimée (Horizon Instantané) par {nom_court}", value=f"{max(0.0, pred):.2f} mW")
 
-    elif mode_test == "📈 Projections Temporelles (Graphique)":
-        st.markdown("### Simulation de la production sur un horizon choisi")
+    elif mode_test == "📈 Projections Graphiques":
         if st.session_state.donnees is None:
-            st.warning("⚠️ Veuillez d'abord charger un fichier de données dans l'onglet 'Importation'.")
+            st.warning("⚠️ Importez un fichier pour projeter les courbes.")
             st.stop()
             
-        horizon = st.slider("Nombre de points temporels à projeter :", 5, 100, 30)
+        horizon = st.slider("Nombre de points futurs à simuler :", 5, 100, 30)
         df_horizon = st.session_state.donnees.copy().head(horizon)
         X_hor = preparer_matrice_entrees(df_horizon, scaler)
         
         if cle_modele in ["gru", "lstm"]:
-            X_hor = np.reshape(X_hor, (X_hor.shape[0], 1, 3))
+            shape_attendue = obj_modele.input_shape
+            if shape_attendue and shape_attendue[-1] == 1:
+                X_hor = np.reshape(X_hor[:, 0], (X_hor.shape[0], 1, 1))
+            else:
+                X_hor = np.reshape(X_hor, (X_hor.shape[0], 1, 3))
             
-        preds_hor = obj_modele.predict(X_hor).flatten()
+        preds_hor = obj_modele.predict(X_hor, verbose=0).flatten()
         
         fig_futur = go.Figure()
-        fig_futur.add_trace(go.Scatter(y=np.clip(preds_hor, 0, None), mode="lines+markers", name="Futur Estimé", line=dict(color="#E65100", width=3)))
-        fig_futur.update_layout(title="Évolution de la puissance estimée sur l'horizon choisi", xaxis_title="Temps cumulé (+t)", yaxis_title="Puissance (mW)")
+        fig_futur.add_trace(go.Scatter(y=np.clip(preds_hor, 0, None), mode="lines+markers", name=f"Horizon Prévisionnel ({nom_court})", line=dict(color="#E65100", width=3)))
+        fig_futur.update_layout(title="Horizon Prévisionnel de Puissance Électrique", xaxis_title="Points temporels cumulés", yaxis_title="Puissance Prédite (mW)")
         st.plotly_chart(fig_futur, use_container_width=True)
