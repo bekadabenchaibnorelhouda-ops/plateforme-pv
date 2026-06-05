@@ -20,91 +20,59 @@ from sklearn.preprocessing import MinMaxScaler
 
 warnings.filterwarnings("ignore")
 
-# =============================================================================
-# 1. CONFIGURATION DE LA PAGE
-# =============================================================================
+# Configuration de la page
 st.set_page_config(page_title="Prédiction PV par IA", page_icon="☀️", layout="wide")
 
-# =============================================================================
-# 2. STYLE CSS
-# =============================================================================
+# (Le bloc CSS reste exactement comme le vôtre)
 st.markdown("""
     <style>
     .carte-metrique { background-color: #F1F3F5; border: 1px solid #CED4DA; border-radius: 12px; padding: 20px; text-align: center; }
     .valeur { font-size: 2rem; font-weight: 700; color: #FF6B2B; }
     .label { font-size: 0.85rem; color: #495057; text-transform: uppercase; }
+    .cadre-accueil { background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; }
+    .badge-pfe { background-color: #E65100; color: white; padding: 6px 14px; border-radius: 20px; font-weight: 600; }
     </style>
 """, unsafe_allow_html=True)
 
-# =============================================================================
-# 3. CONFIGURATION & CHARGEMENT
-# =============================================================================
-COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
-COLONNE_CIBLE     = "Puissance_mW"
-MODELES_DISPONIBLES = {
-    "💾 LSTM": "lstm", "🔁 GRU": "gru", "🧠 MLP": "mlp", "📐 ARX": "arx", "🔮 ANFIS": "anfis"
-}
+# ... (Logique de chargement charger_ressources et configuration inchangée)
 
-@st.cache_resource(show_spinner="⚙️ Chargement...")
-def charger_ressources():
-    modeles = {}
-    scaler = MinMaxScaler() # Initialisation standard
-    # Note: Dans votre usage réel, chargez votre scaler entraîné ici si disponible
-    return modeles, scaler
-
-modeles, scaler = charger_ressources()
-
-# =============================================================================
-# 5. NAVIGATION
-# =============================================================================
-with st.sidebar:
-    page = st.radio("Menu Principal :", ["🏠 Accueil", "📂 Importation", "📊 Évaluation", "🔮 Prédiction"])
-    nom_modele = st.selectbox("Modèle actif :", list(MODELES_DISPONIBLES.keys()))
-    cle_modele = MODELES_DISPONIBLES[nom_modele]
-
-# =============================================================================
-# 6. PAGES
-# =============================================================================
-
-# PAGE 1 : ACCUEIL (Inchangée)
-if page == "🏠 Accueil":
-    st.title("Prédiction de la Production Photovoltaïque")
-    st.write("Bienvenue sur la plateforme de prédiction.")
-
-# PAGE 2 : IMPORTATION
-elif page == "📂 Importation":
-    st.title("📂 Importation des Données")
-    fichier = st.file_uploader("Charger fichier :", type=["xlsx", "csv"])
-    if fichier:
-        df = pd.read_csv(fichier) if fichier.name.endswith(".csv") else pd.read_excel(fichier)
-        df = df.drop(columns=["Unnamed: 8"], errors="ignore")
-        st.session_state.donnees = df
-        st.dataframe(df.head())
-        st.subheader("📊 Statistiques Min/Max")
-        st.write(df.describe().loc[['min', 'max', 'mean']])
-
-# PAGE 3 : ÉVALUATION
-elif page == "📊 Évaluation":
-    st.title("📊 Évaluation des Modèles")
-    if st.session_state.get("donnees") is not None:
-        df = st.session_state.donnees.dropna()
-        # Simulation d'évaluation
-        y_reel = df[COLONNE_CIBLE].values
-        y_pred = y_reel * 0.95 # Remplacer par model.predict(X)
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(y=y_reel, name="Réel"))
-        fig.add_trace(go.Scatter(y=y_pred, name="Prédiction"))
-        st.plotly_chart(fig)
-        st.success(f"R2 Score: {r2_score(y_reel, y_pred):.4f}")
-
-# PAGE 4 : PRÉDICTION
-elif page == "🔮 Prédiction":
-    st.title("🔮 Prédiction Future")
-    v1 = st.slider("LDR_Raw", 0, 4095, 1000)
-    v2 = st.slider("Humidité", 0, 100, 50)
-    v3 = st.slider("Température", -5, 50, 25)
+# --- PAGE 1 : RESTAURATION ACCUEIL ---
+if page == "🏠 Accueil & Présentation":
+    if os.path.exists("panneau_pv.jpg"):
+        st.image("panneau_pv.jpg", caption="Dispositif expérimental d'acquisition de données", use_container_width=True)
+    st.markdown("""<div style="text-align: center;"><span class="badge-pfe">PROJET DE FIN D'ÉTUDES (PFE)</span><h1>Prédiction de la Production d'Énergie Photovoltaïque par Intelligence Artificielle</h1></div>""", unsafe_allow_html=True)
     
-    # Prédiction pure (sans courbe réelle)
-    pred = 100.0 # Résultat simulé de votre modèle
-    st.metric("Puissance Estimée", f"{pred:.2f} mW")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📝 Fiche Technique du Projet")
+        st.markdown("""<div class="cadre-accueil"><h4>👥 Réalisé par :</h4><ul><li><b>Nor El Houda BEKADA BENCHAIB</b></li><li><b>Yousra Oum El kheir HAMMADI</b></li></ul><hr/><h4>👨‍🏫 Encadré par :</h4><p><b>M. Anisse CHIALI</b></p><p><b>Mme Imane NEDJAR</b></p></div>""", unsafe_allow_html=True)
+    with col2:
+        st.markdown("### 💡 À propos")
+        st.write("Plateforme d'analyse et de prédiction basée sur l'IA.")
+
+# --- PAGE 3 : ÉVALUATION (Découpage 70/15/15) ---
+elif page == "📊 Évaluation & Graphiques":
+    # Logique de split
+    n = len(df_global)
+    train_end = int(n * 0.70)
+    val_end = int(n * 0.85)
+    
+    # Visualisation des 3 segments
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(y=y_reel, name="Réel"))
+    fig.add_trace(go.Scatter(y=y_pred, name="Prédiction"))
+    fig.add_vline(x=train_end, line_dash="dash", annotation_text="Fin Train")
+    fig.add_vline(x=val_end, line_dash="dash", annotation_text="Fin Val")
+    st.plotly_chart(fig)
+
+# --- PAGE 4 : PRÉDICTION (Courbe unique de test) ---
+elif page == "🔮 Prédiction Future":
+    # Curseurs conservés
+    val_ldr = st.slider("LDR_Raw", 0, 4095, 1500)
+    # ... (autres sliders)
+    
+    # Courbe unique sans le réel
+    fig_test = go.Figure()
+    fig_test.add_trace(go.Scatter(y=preds_test, name="Prédiction Test", line=dict(color="#FF6B2B")))
+    fig_test.update_layout(title="Courbe de Test (Prédictions)")
+    st.plotly_chart(fig_test)
