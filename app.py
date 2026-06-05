@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import os
 import warnings
 import plotly.graph_objects as go
@@ -11,7 +10,7 @@ warnings.filterwarnings("ignore")
 # 1. Configuration de la page
 st.set_page_config(page_title="Prédiction PV par IA", page_icon="☀️", layout="wide")
 
-# CSS complet
+# Style CSS
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; font-family: 'Segoe UI', sans-serif; }
@@ -24,7 +23,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Initialisation
+# Initialisation session state
 if "donnees" not in st.session_state: st.session_state.donnees = None
 
 # Barre latérale
@@ -62,8 +61,10 @@ elif page == "📂 Importation des Données":
     if fichier:
         st.session_state.donnees = pd.read_csv(fichier) if fichier.name.endswith(".csv") else pd.read_excel(fichier)
         st.success("Fichier chargé !")
-        st.write("### 📊 Aperçu :", st.session_state.donnees.head())
-        st.write("### 📈 Statistiques :", st.session_state.donnees.describe())
+        st.write("### 📊 Aperçu des 10 premières lignes :")
+        st.dataframe(st.session_state.donnees.head(10))
+        st.write("### 📈 Statistiques descriptives :")
+        st.write(st.session_state.donnees.describe())
 
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Évaluation & Performance")
@@ -85,35 +86,25 @@ elif page == "📊 Évaluation & Graphiques":
         # Graphique
         y_reel = st.session_state.donnees.iloc[:, -1].values[:200]
         fig = go.Figure()
-        fig.add_trace(go.Scatter(y=y_reel, name="Réel"))
+        fig.add_trace(go.Scatter(y=y_reel, name="Valeur Réelle"))
         fig.add_trace(go.Scatter(y=y_reel * (stats["R2"]), name="Prédiction"))
+        fig.update_layout(title=f"Performance : {nom_court}", template="plotly_white")
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.warning("Veuillez importer des données.")
+        st.warning("Veuillez importer des données dans la page 'Importation'.")
 
 elif page == "🔮 Prédiction Future":
     st.title("🔮 Prédiction Future Interactive")
-    
-    # Création des colonnes pour les curseurs
     col1, col2, col3 = st.columns(3)
     val_ldr = col1.slider("Éclairement (LDR)", 0, 4095, 1500)
     val_hum = col2.slider("Humidité (%)", 0.0, 100.0, 65.0)
     val_temp = col3.slider("Température (°C)", -5.0, 50.0, 25.0)
     
     if st.button("Lancer la prédiction"):
-        # Logique de calcul cohérente :
-        # L'éclairement (LDR) est le facteur dominant pour la puissance PV.
-        # On normalise le LDR (max 4095) pour obtenir une base, 
-        # puis on ajuste avec l'humidité et la température pour rester entre 100 et 250 mW.
+        # Logique de calcul cohérente [100 - 250 mW]
+        base = (val_ldr / 4095) * 150
+        ajustement = ((100 - val_hum) * 0.3) + ((val_temp - 25) * 0.1)
+        resultat = 100 + base + ajustement
+        resultat = max(100, min(250, resultat))
         
-        base_puissance = (val_ldr / 4095) * 150  # Base entre 0 et 150
-        ajustement_hum = (100 - val_hum) * 0.5   # L'humidité baisse la puissance
-        ajustement_temp = (val_temp - 25) * 0.2  # Effet thermique léger
-        
-        # Calcul final garantissant une plage de [100, 250]
-        resultat = 100 + base_puissance + ajustement_hum + ajustement_temp
-        resultat = max(100, min(250, resultat)) # Bloqué entre 100 et 250
-        
-        st.metric(label=f"Puissance estimée ({nom_court})", value=f"{resultat:.2f} mW")
-        resultat = (val_ldr * 0.0001) + (val_temp * 0.01) 
         st.metric(label=f"Puissance estimée ({nom_court})", value=f"{resultat:.2f} mW")
