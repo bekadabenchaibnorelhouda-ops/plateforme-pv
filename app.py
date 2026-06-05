@@ -4,11 +4,11 @@ import numpy as np
 import joblib
 import os
 import warnings
+import plotly.graph_objects as go
 
 warnings.filterwarnings("ignore")
 
-import plotly.graph_objects as go
-
+# ───────────────────────── CONFIG ─────────────────────────
 st.set_page_config(
     page_title="Prédiction PV par IA",
     page_icon="☀️",
@@ -16,87 +16,53 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.markdown("""<style>/* CSS inchangé */</style>""", unsafe_allow_html=True)
-
 COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
 COLONNE_CIBLE = "Puissance_mW"
 FICHIER_EXEMPLE = "Classeur1.xlsx"
 
 MODELES_DISPONIBLES = {
-    "📐 ARX  — Modèle Autorégressif Linéaire": "arx",
-    "🧠 PMC  — Perceptron Multicouche": "mlp",
-    "🔁 GRU  — Réseau de Neurones Récurrent": "gru",
-    "💾 LSTM — Mémoire à Long Terme": "lstm",
-    "🔮 ANFIS — Système Neuro-Flou Adaptatif": "anfis",
+    "📐 ARX": "arx",
+    "🧠 PMC": "mlp",
+    "🔁 GRU": "gru",
+    "💾 LSTM": "lstm",
+    "🔮 ANFIS": "anfis",
 }
 
-@st.cache_resource(show_spinner="⚙️ Chargement des architectures d'IA…")
+# ───────────────────────── CHARGEMENT MODELES ─────────────────────────
+@st.cache_resource
 def charger_ressources():
     modeles = {}
-    scaler = None
 
-    if os.path.exists("scaler.pkl"):
-        scaler = joblib.load("scaler.pkl")
+    scaler = joblib.load("scaler.pkl") if os.path.exists("scaler.pkl") else None
 
-    fichiers = {
-        "arx": "model_arx.pkl",
-        "mlp": "model_mlp.pkl",
-        "anfis": "model_anfis.pkl",
-    }
-
-    for cle, chemin in fichiers.items():
-        if os.path.exists(chemin):
-            modeles[cle] = joblib.load(chemin)
+    for m in ["arx", "mlp", "anfis"]:
+        path = f"model_{m}.pkl"
+        if os.path.exists(path):
+            modeles[m] = joblib.load(path)
 
     try:
         from tensorflow.keras.models import load_model
 
-        modeles_h5 = {
-            "gru": "model_gru.h5",
-            "lstm": "model_lstm.h5",
-        }
-
-        for cle, chemin in modeles_h5.items():
-            if os.path.exists(chemin):
-                modeles[cle] = load_model(chemin, compile=False)
+        for m in ["gru", "lstm"]:
+            path = f"model_{m}.h5"
+            if os.path.exists(path):
+                modeles[m] = load_model(path, compile=False)
     except:
         pass
 
     return modeles, scaler
 
 
-def preparer_matrice_entrees(df_data, scaler_obj, cle_mod, nb_attendues):
-    X_base = df_data[COLONNES_REQUISES].values.astype(float)
-
-    if np.any(np.isnan(X_base)):
-        X_base = np.nan_to_num(X_base, nan=0.0)
-
-    if scaler_obj is not None:
-        try:
-            if hasattr(scaler_obj, "n_features_in_"):
-                if scaler_obj.n_features_in_ == X_base.shape[1]:
-                    X_base = scaler_obj.transform(X_base)
-        except:
-            pass
-
-    n_echantillons, n_feats = X_base.shape
-
-    if n_feats == nb_attendues:
-        return X_base
-    elif nb_attendues > n_feats:
-        X_adapte = np.zeros((n_echantillons, nb_attendues))
-        X_adapte[:, :n_feats] = X_base
-        return X_adapte
-    else:
-        return X_base[:, :nb_attendues]
-
-
 modeles, scaler = charger_ressources()
 
+# ───────────────────────── STATE ─────────────────────────
 if "donnees" not in st.session_state:
     st.session_state.donnees = None
 
+# ───────────────────────── SIDEBAR ─────────────────────────
 with st.sidebar:
+    st.title("☀️ PV IA")
+
     page = st.radio(
         "Menu",
         [
@@ -107,116 +73,131 @@ with st.sidebar:
         ],
     )
 
-    nom_modele_selectionne = st.selectbox(
-        "Modèle :", list(MODELES_DISPONIBLES.keys())
-    )
-    cle_modele = MODELES_DISPONIBLES[nom_modele_selectionne]
-    nom_court = nom_modele_selectionne.split("—")[0].strip()
+    nom_modele = st.selectbox("Modèle", list(MODELES_DISPONIBLES.keys()))
+    cle_modele = MODELES_DISPONIBLES[nom_modele]
 
+# ───────────────────────── PAGE ACCUEIL ─────────────────────────
+if page == "🏠 Accueil & Présentation":
+    st.title("Plateforme PV IA")
+    st.write("Système de prédiction de puissance photovoltaïque")
 
-# ───────────────────────── PAGE ÉVALUATION ─────────────────────────
+# ───────────────────────── IMPORTATION ─────────────────────────
+elif page == "📂 Importation des Données":
+    file = st.file_uploader("Upload fichier", type=["xlsx", "csv"])
+
+    if file:
+        if file.name.endswith(".csv"):
+            df = pd.read_csv(file)
+        else:
+            df = pd.read_excel(file)
+
+        st.session_state.donnees = df
+        st.success("Fichier chargé")
+
+    if st.session_state.donnees is not None:
+        st.dataframe(st.session_state.donnees.head())
+
+# ───────────────────────── ÉVALUATION ─────────────────────────
 elif page == "📊 Évaluation & Graphiques":
 
-    df = st.session_state.donnees.copy()
-    obj_modele = modeles.get(cle_modele)
-
-    if obj_modele is None:
+    if st.session_state.donnees is None:
+        st.warning("Importer des données")
         st.stop()
 
-    n_attendues = (
-        obj_modele.n_features_in_
-        if hasattr(obj_modele, "n_features_in_")
-        else 3
-    )
+    df = st.session_state.donnees.copy()
+    model = modeles.get(cle_modele)
 
-    X_final = preparer_matrice_entrees(df, scaler, cle_modele, n_attendues)
+    if model is None:
+        st.error("Modèle introuvable")
+        st.stop()
 
+    X = df[COLONNES_REQUISES].values.astype(float)
+    X = np.nan_to_num(X)
+
+    # reshape GRU/LSTM
     if cle_modele in ["gru", "lstm"]:
-        X_final = X_final.reshape(X_final.shape[0], 1, X_final.shape[1])
+        X_in = X.reshape(X.shape[0], 1, X.shape[1])
+    else:
+        X_in = X
 
-    y_pred = obj_modele.predict(X_final).flatten()
+    y_pred = model.predict(X_in).flatten()
     y_pred = np.clip(y_pred, 0, None)
 
-    # ---------------- CORRECTION ICI ----------------
-    y_reel = df[COLONNE_CIBLE].values.astype(float).reshape(-1)
+    # ✅ CORRECTION R²
+    y_true = df[COLONNE_CIBLE].values.astype(float).reshape(-1)
 
-    mask = ~np.isnan(y_reel)
-    y_reel = y_reel[mask]
+    mask = ~np.isnan(y_true)
+    y_true = y_true[mask]
 
     y_pred = np.array(y_pred).reshape(-1)
 
-    taille_min = min(len(y_reel), len(y_pred))
-    y_reel = y_reel[:taille_min]
-    y_pred = y_pred[:taille_min]
-    # -------------------------------------------------
+    n = min(len(y_true), len(y_pred))
+    y_true = y_true[:n]
+    y_pred = y_pred[:n]
 
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
-    rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
-    mae = mean_absolute_error(y_reel, y_pred)
-    r2 = r2_score(y_reel, y_pred)
+    rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+    mae = mean_absolute_error(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
 
-    st.write(rmse, mae, r2)
+    st.subheader("📊 Métriques")
+    st.write("RMSE:", rmse)
+    st.write("MAE:", mae)
+    st.write("R²:", r2)
 
+    # plot
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(y=y_true, name="Réel"))
+    fig.add_trace(go.Scatter(y=y_pred, name="Prédit"))
+    st.plotly_chart(fig, use_container_width=True)
 
-# ───────────────────────── PAGE FUTURE ─────────────────────────
+# ───────────────────────── PRÉDICTION FUTURE ─────────────────────────
 elif page == "🔮 Prédiction Future":
 
-    obj_modele = modeles.get(cle_modele)
+    model = modeles.get(cle_modele)
 
-    n_attendues = (
-        obj_modele.n_features_in_
-        if hasattr(obj_modele, "n_features_in_")
-        else 3
-    )
+    if model is None:
+        st.error("Modèle manquant")
+        st.stop()
 
-    mode_test = st.radio(
-        "Méthode :",
-        [
-            "Saisie manuelle",
-            "Simulation sur horizon temporel futur",
-        ],
-    )
+    mode = st.radio("Mode", ["Point unique", "Simulation"])
 
-    if mode_test == "Saisie manuelle":
+    if mode == "Point unique":
 
-        val_ldr = st.slider("LDR", 0, 4095, 1400)
-        val_hum = st.slider("Hum", 0.0, 100.0, 70.0)
-        val_temp = st.slider("Temp", -5.0, 55.0, 25.0)
+        ldr = st.slider("LDR", 0, 4095, 1500)
+        hum = st.slider("Humidité", 0.0, 100.0, 70.0)
+        temp = st.slider("Température", -5.0, 55.0, 25.0)
 
-        df_temp = pd.DataFrame(
-            [{"LDR_Raw": val_ldr, "Hum_%": val_hum, "Temp_C": val_temp}]
-        )
-
-        X_pt = preparer_matrice_entrees(df_temp, scaler, cle_modele, n_attendues)
+        x = np.array([[ldr, hum, temp]])
 
         if cle_modele in ["gru", "lstm"]:
-            X_pt = X_pt.reshape(1, 1, X_pt.shape[1])
+            x = x.reshape(1, 1, 3)
 
-        pred = obj_modele.predict(X_pt)[0]
-        st.success(f"{max(0, pred):.2f} mW")
+        pred = model.predict(x)[0]
+        st.success(f"Puissance : {max(0, pred):.2f} mW")
 
     else:
 
-        # ---------------- CORRECTION TEXTE ICI ----------------
-        st.markdown("### Simulation (projection sur données existantes)")
+        st.markdown("### Simulation sur données existantes (pas un vrai futur)")
 
-        horizon = st.slider("Nombre de points :", 5, 100, 30)
+        if st.session_state.donnees is None:
+            st.warning("Importer données")
+            st.stop()
 
-        df_horizon = st.session_state.donnees.copy().head(horizon)
+        h = st.slider("Points", 5, 100, 30)
 
-        X_hor = preparer_matrice_entrees(
-            df_horizon, scaler, cle_modele, n_attendues
-        )
+        df = st.session_state.donnees.head(h)
+
+        X = df[COLONNES_REQUISES].values.astype(float)
+        X = np.nan_to_num(X)
 
         if cle_modele in ["gru", "lstm"]:
-            X_hor = X_hor.reshape(X_hor.shape[0], 1, X_hor.shape[1])
+            X = X.reshape(X.shape[0], 1, X.shape[1])
 
-        preds = obj_modele.predict(X_hor).flatten()
+        preds = model.predict(X).flatten()
         preds = np.clip(preds, 0, None)
 
         fig = go.Figure()
-        fig.add_trace(
-            go.Scatter(y=preds, mode="lines+markers", name="Prédiction")
-        )
+        fig.add_trace(go.Scatter(y=preds, mode="lines+markers"))
         st.plotly_chart(fig, use_container_width=True)
