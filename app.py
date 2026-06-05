@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 
 warnings.filterwarnings("ignore")
 
-# ───────────────────────── CONFIG ─────────────────────────
+# ───────────────────────── CONFIG PAGE ─────────────────────────
 st.set_page_config(
     page_title="Prédiction PV par IA",
     page_icon="☀️",
@@ -16,9 +16,29 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ───────────────────────── CSS (INCHANGÉ) ─────────────────────────
+st.markdown(
+    """
+    <style>
+    :root {
+        --couleur-primaire   : #FF6B2B;
+        --couleur-secondaire : #F8F9FA;
+        --couleur-accent     : #E65100;
+        --couleur-fond       : #FFFFFF;
+        --couleur-carte      : #F1F3F5;
+        --couleur-texte      : #212529;
+    }
+    .stApp { background-color: var(--couleur-fond); color: var(--couleur-texte); font-family: 'Segoe UI', sans-serif; }
+    [data-testid="stSidebar"] { background-color: var(--couleur-secondaire); border-right: 1px solid #DEE2E6; }
+    h1, h2, h3 { color: var(--couleur-accent) !important; font-weight: 700 !important; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ───────────────────────── CONSTANTES ─────────────────────────
 COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
 COLONNE_CIBLE = "Puissance_mW"
-FICHIER_EXEMPLE = "Classeur1.xlsx"
 
 MODELES_DISPONIBLES = {
     "📐 ARX": "arx",
@@ -42,7 +62,6 @@ def charger_ressources():
 
     try:
         from tensorflow.keras.models import load_model
-
         for m in ["gru", "lstm"]:
             path = f"model_{m}.h5"
             if os.path.exists(path):
@@ -55,7 +74,7 @@ def charger_ressources():
 
 modeles, scaler = charger_ressources()
 
-# ───────────────────────── STATE ─────────────────────────
+# ───────────────────────── SESSION STATE ─────────────────────────
 if "donnees" not in st.session_state:
     st.session_state.donnees = None
 
@@ -78,12 +97,13 @@ with st.sidebar:
 
 # ───────────────────────── PAGE ACCUEIL ─────────────────────────
 if page == "🏠 Accueil & Présentation":
-    st.title("Plateforme PV IA")
-    st.write("Système de prédiction de puissance photovoltaïque")
+    st.title("☀️ Plateforme de Prédiction Photovoltaïque par IA")
+    st.write("Projet de fin d'études — Automatique / ESSA Tlemcen")
 
 # ───────────────────────── IMPORTATION ─────────────────────────
 elif page == "📂 Importation des Données":
-    file = st.file_uploader("Upload fichier", type=["xlsx", "csv"])
+
+    file = st.file_uploader("Importer fichier", type=["xlsx", "csv"])
 
     if file:
         if file.name.endswith(".csv"):
@@ -92,7 +112,7 @@ elif page == "📂 Importation des Données":
             df = pd.read_excel(file)
 
         st.session_state.donnees = df
-        st.success("Fichier chargé")
+        st.success("Fichier chargé avec succès")
 
     if st.session_state.donnees is not None:
         st.dataframe(st.session_state.donnees.head())
@@ -101,7 +121,7 @@ elif page == "📂 Importation des Données":
 elif page == "📊 Évaluation & Graphiques":
 
     if st.session_state.donnees is None:
-        st.warning("Importer des données")
+        st.warning("Importer les données d'abord")
         st.stop()
 
     df = st.session_state.donnees.copy()
@@ -114,7 +134,6 @@ elif page == "📊 Évaluation & Graphiques":
     X = df[COLONNES_REQUISES].values.astype(float)
     X = np.nan_to_num(X)
 
-    # reshape GRU/LSTM
     if cle_modele in ["gru", "lstm"]:
         X_in = X.reshape(X.shape[0], 1, X.shape[1])
     else:
@@ -123,7 +142,7 @@ elif page == "📊 Évaluation & Graphiques":
     y_pred = model.predict(X_in).flatten()
     y_pred = np.clip(y_pred, 0, None)
 
-    # ✅ CORRECTION R²
+    # ─────────────── CORRECTION R² ───────────────
     y_true = df[COLONNE_CIBLE].values.astype(float).reshape(-1)
 
     mask = ~np.isnan(y_true)
@@ -134,6 +153,7 @@ elif page == "📊 Évaluation & Graphiques":
     n = min(len(y_true), len(y_pred))
     y_true = y_true[:n]
     y_pred = y_pred[:n]
+    # ───────────────────────────────────────────────
 
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
@@ -141,12 +161,11 @@ elif page == "📊 Évaluation & Graphiques":
     mae = mean_absolute_error(y_true, y_pred)
     r2 = r2_score(y_true, y_pred)
 
-    st.subheader("📊 Métriques")
+    st.subheader("📊 Résultats")
     st.write("RMSE:", rmse)
     st.write("MAE:", mae)
     st.write("R²:", r2)
 
-    # plot
     fig = go.Figure()
     fig.add_trace(go.Scatter(y=y_true, name="Réel"))
     fig.add_trace(go.Scatter(y=y_pred, name="Prédit"))
@@ -158,7 +177,7 @@ elif page == "🔮 Prédiction Future":
     model = modeles.get(cle_modele)
 
     if model is None:
-        st.error("Modèle manquant")
+        st.error("Modèle introuvable")
         st.stop()
 
     mode = st.radio("Mode", ["Point unique", "Simulation"])
@@ -175,17 +194,17 @@ elif page == "🔮 Prédiction Future":
             x = x.reshape(1, 1, 3)
 
         pred = model.predict(x)[0]
-        st.success(f"Puissance : {max(0, pred):.2f} mW")
+        st.success(f"Puissance prédite : {max(0, pred):.2f} mW")
 
     else:
 
         st.markdown("### Simulation sur données existantes (pas un vrai futur)")
 
         if st.session_state.donnees is None:
-            st.warning("Importer données")
+            st.warning("Importer les données")
             st.stop()
 
-        h = st.slider("Points", 5, 100, 30)
+        h = st.slider("Nombre de points", 5, 100, 30)
 
         df = st.session_state.donnees.head(h)
 
