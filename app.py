@@ -17,19 +17,35 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Style CSS personnalisé
+# Style CSS personnalisé pour l'interface utilisateur
 st.markdown(
     """
     <style>
-    :root { --couleur-primaire: #FF6B2B; --couleur-secondaire: #F8F9FA; --couleur-accent: #E65100; --couleur-fond: #FFFFFF; --couleur-carte: #F1F3F5; --couleur-texte: #212529; }
+    :root {
+        --couleur-primaire   : #FF6B2B;
+        --couleur-secondaire : #F8F9FA;
+        --couleur-accent     : #E65100;
+        --couleur-fond       : #FFFFFF;
+        --couleur-carte      : #F1F3F5;
+        --couleur-texte      : #212529;
+    }
     .stApp { background-color: var(--couleur-fond); color: var(--couleur-texte); font-family: 'Segoe UI', sans-serif; }
     [data-testid="stSidebar"] { background-color: var(--couleur-secondaire); border-right: 1px solid #DEE2E6; }
     h1, h2, h3 { color: var(--couleur-accent) !important; font-weight: 700 !important; }
-    .carte-metrique { background-color: var(--couleur-carte); border: 1px solid #CED4DA; border-radius: 12px; padding: 20px 24px; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 12px; }
+    
+    .carte-metrique {
+        background-color: var(--couleur-carte); border: 1px solid #CED4DA; border-radius: 12px;
+        padding: 20px 24px; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); margin-bottom: 12px;
+    }
     .carte-metrique .valeur { font-size: 2rem; font-weight: 700; color: var(--couleur-primaire); }
     .carte-metrique .label { font-size: 0.85rem; color: #495057; margin-top: 4px; text-transform: uppercase; }
-    .cadre-accueil { background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; margin-bottom: 20px; }
-    .badge-pfe { background-color: #E65100; color: white; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; display: inline-block; margin-bottom: 15px; }
+    
+    .cadre-accueil {
+        background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; margin-bottom: 20px;
+    }
+    .badge-pfe {
+        background-color: #E65100; color: white; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 0.9rem; display: inline-block; margin-bottom: 15px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -37,78 +53,94 @@ st.markdown(
 
 COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
 COLONNE_CIBLE     = "Puissance_mW"
+FICHIER_EXEMPLE   = "Classeur1.xlsx"
+
 MODELES_DISPONIBLES = {
-    "💾 LSTM (Long Short-Term Memory)": "lstm",
-    "🔁 GRU (Gated Recurrent Unit)": "gru",
-    "🧠 MLP (Multi-Layer Perceptron)": "mlp",
-    "📐 ARX (Auto-Regressive Exogenous)": "arx",
-    "🔮 ANFIS (Adaptive Neuro-Fuzzy)": "anfis",
+    "💾 LSTM (Long Short-Term Memory)"         : "lstm",
+    "🔁 GRU (Gated Recurrent Unit)"            : "gru",
+    "🧠 MLP (Multi-Layer Perceptron)"          : "mlp",
+    "📐 ARX (Auto-Regressive Exogenous)"       : "arx",
+    "🔮 ANFIS (Adaptive Neuro-Fuzzy)"          : "anfis",
 }
 
-@st.cache_resource
+@st.cache_resource(show_spinner="⚙️ Chargement des architectures d'IA…")
 def charger_ressources():
     modeles = {}
     scaler = None
-    if os.path.exists("scaler.pkl"): scaler = joblib.load("scaler.pkl")
-    fichiers = {"mlp": "model_mlp.pkl", "arx": "model_arx.pkl", "anfis": "model_anfis.pkl"}
-    for k, c in fichiers.items():
-        if os.path.exists(c): modeles[k] = joblib.load(c)
+    if os.path.exists("scaler.pkl"):
+        try: scaler = joblib.load("scaler.pkl")
+        except: pass
+    fichiers_pkl = {"mlp": "model_mlp.pkl", "arx": "model_arx.pkl", "anfis": "model_anfis.pkl"}
+    for cle, chemin in fichiers_pkl.items():
+        if os.path.exists(chemin):
+            try: modeles[cle] = joblib.load(chemin)
+            except: pass
     try:
         from tensorflow.keras.models import load_model
-        for k in ["gru", "lstm"]:
-            if os.path.exists(f"model_{k}.h5"): modeles[k] = load_model(f"model_{k}.h5", compile=False)
+        fichiers_h5 = {"gru": "model_gru.h5", "lstm": "model_lstm.h5"}
+        for cle, chemin in fichiers_h5.items():
+            if os.path.exists(chemin):
+                try: modeles[cle] = load_model(chemin, compile=False)
+                except: pass
     except: pass
     return modeles, scaler
 
 modeles, scaler = charger_ressources()
 
 if "donnees" not in st.session_state: st.session_state.donnees = None
+if "nom_fichier" not in st.session_state: st.session_state.nom_fichier = None
 
 with st.sidebar:
     st.markdown("<div style='text-align:center; padding: 10px 0;'><div style='font-size:3rem;'>☀️</div></div>", unsafe_allow_html=True)
+    st.markdown("### 🗂️ Menu Principal")
     page = st.radio("Sélectionnez une page :", ["🏠 Accueil & Présentation", "📂 Importation des Données", "📊 Évaluation & Graphiques", "🔮 Prédiction Future"])
+    st.divider()
+    st.markdown("### 🤖 Configuration IA")
     nom_modele_selectionne = st.selectbox("Modèle d'IA actif :", list(MODELES_DISPONIBLES.keys()))
     cle_modele = MODELES_DISPONIBLES[nom_modele_selectionne]
+    nom_court = nom_modele_selectionne.split("(")[0].strip()
 
+# --- PAGE 1 ---
 if page == "🏠 Accueil & Présentation":
-    st.markdown("""<div style="text-align: center;"><span class="badge-pfe">PROJET DE FIN D'ÉTUDES (PFE)</span><h1>Prédiction PV par IA</h1></div>""", unsafe_allow_html=True)
+    st.markdown("""<div style="text-align: center; margin-top: 25px;"><span class="badge-pfe">PROJET DE FIN D'ÉTUDES (PFE)</span><h1>Prédiction de la Production d'Énergie PV</h1></div>""", unsafe_allow_html=True)
 
+# --- PAGE 2 ---
 elif page == "📂 Importation des Données":
     st.title("📂 Importation des Données")
-    f = st.file_uploader("Charger fichier :", type=["xlsx", "csv"])
-    if f:
-        st.session_state.donnees = pd.read_csv(f) if f.name.endswith(".csv") else pd.read_excel(f)
-    
-    if st.session_state.donnees is not None:
-        st.write("### Aperçu")
-        st.dataframe(st.session_state.donnees.head())
-        st.write("### Statistiques (Min, Max, Moyenne)")
-        # Ajout du tableau de statistiques demandé
-        stats = st.session_state.donnees.describe().loc[['min', 'max', 'mean', 'std']]
-        st.table(stats)
+    fichier_charge = st.file_uploader("Choisir un fichier :", type=["xlsx", "csv"])
+    if fichier_charge:
+        df = pd.read_csv(fichier_charge) if fichier_charge.name.endswith(".csv") else pd.read_excel(fichier_charge)
+        st.session_state.donnees = df
+        st.dataframe(df.head())
+        # Ajout du tableau statistique
+        st.subheader("📊 Statistiques des données")
+        st.table(df.describe().loc[['min', 'max', 'mean', 'std']])
 
+# --- PAGE 3 ---
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Évaluation")
-    if st.session_state.donnees is None: st.stop()
-    
-    df = st.session_state.donnees.dropna(subset=COLONNES_REQUISES + [COLONNE_CIBLE])
-    y_reel = df[COLONNE_CIBLE].values
-    
-    # CORRECTION DE L'ERREUR : Sélection dynamique des colonnes selon le modèle
-    colonnes_utilisees = ["LDR_Raw"] if cle_modele in ["arx", "anfis"] else COLONNES_REQUISES
-    X = df[colonnes_utilisees].values
-    
-    # Transformation sécurisée
-    if scaler and hasattr(scaler, "n_features_in_") and scaler.n_features_in_ == X.shape[1]:
-        X_scaled = scaler.transform(X)
-    else:
-        X_scaled = X # Fallback si scaler incompatible
+    if st.session_state.donnees is not None:
+        df = st.session_state.donnees.dropna()
         
-    obj_modele = modeles.get(cle_modele)
-    if cle_modele in ["gru", "lstm"]:
-        y_pred = obj_modele.predict(X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1]), verbose=0).flatten()
-    else:
-        y_pred = obj_modele.predict(X_scaled).flatten()
+        # CORRECTION : Sélection dynamique des colonnes selon le modèle
+        if cle_modele in ["arx", "anfis"]:
+            X = df[["LDR_Raw"]].values
+        else:
+            X = df[COLONNES_REQUISES].values
+            
+        y_reel = df[COLONNE_CIBLE].values
         
-    st.metric("R² Score", f"{r2_score(y_reel, y_pred):.4f}")
-    # ... (reste de votre code d'affichage Plotly)
+        # CORRECTION : On vérifie si le scaler accepte bien X avant de transformer
+        try:
+            X_scaled = scaler.transform(X) if scaler else X
+            obj_modele = modeles.get(cle_modele)
+            y_pred = obj_modele.predict(X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1]) if cle_modele in ["gru", "lstm"] else X_scaled).flatten()
+            
+            rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
+            st.metric("RMSE", f"{rmse:.2f}")
+        except Exception as e:
+            st.error(f"Erreur de compatibilité modèle/données : {e}")
+
+# --- PAGE 4 ---
+elif page == "🔮 Prédiction Future":
+    st.title("🔮 Prédiction")
