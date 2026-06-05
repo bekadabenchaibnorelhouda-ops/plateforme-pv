@@ -5,6 +5,7 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 Fichier  : app.py
 Auteurs  : Nor El Houda BEKADA BENCHAIB & Yousra Oum El kheir HAMMADI
+Encadrement : M. Anisse CHIALI & Mme Imane NEDJAR
 """
 
 import streamlit as st
@@ -18,7 +19,7 @@ warnings.filterwarnings("ignore")
 
 import plotly.graph_objects as go
 
-# 1. Configuration de la page (Doit être la toute première commande Streamlit)
+# 1. Configuration de la page (Doit être la toute première commande)
 st.set_page_config(
     page_title="Prédiction PV par IA",
     page_icon="☀️",
@@ -80,20 +81,19 @@ MODELES_DISPONIBLES = {
     "🔮 ANFIS — Système Neuro-Flou Adaptatif" : "anfis",
 }
 
-# 3. Chargement robuste des fichiers d'IA et du Scaler
+# 3. Chargement des fichiers d'IA avec correction d'orthographe (model_...)
 @st.cache_resource(show_spinner="⚙️ Chargement des architectures d'IA…")
 def charger_ressources():
     modeles = {}
     scaler = None
 
-    # Chargement du scaler
     if os.path.exists("scaler.pkl"):
         try:
             scaler = joblib.load("scaler.pkl")
         except Exception as e:
             st.warning(f"ℹ️ Info Scaler : {e}")
 
-    # Modèles Scikit-Learn / Joblib
+    # Utilisation stricte des noms de fichiers réels (model_...)
     fichiers = {
         "arx": "model_arx.pkl",
         "mlp": "model_mlp.pkl",
@@ -107,7 +107,6 @@ def charger_ressources():
             except Exception as e:
                 st.error(f"❌ Erreur sur {chemin} : {e}")
 
-    # Modèles Deep Learning Keras/TensorFlow
     try:
         from tensorflow.keras.models import load_model
         fichiers_h5 = {
@@ -125,19 +124,16 @@ def charger_ressources():
 
     return modeles, scaler
 
-# 4. Sécurisation de la matrice pour éviter les erreurs de dimensions (features)
 def preparer_matrice_entrees(df_data: pd.DataFrame, scaler_obj, cle_mod, nb_attendues) -> np.ndarray:
     X_base = df_data[COLONNES_REQUISES].values.astype(float)
     if np.any(np.isnan(X_base)):
         X_base = np.nan_to_num(X_base, nan=0.0)
 
-    # Normalisation adaptative sécurisée
     if scaler_obj is not None:
         try:
             if hasattr(scaler_obj, "n_features_in_") and scaler_obj.n_features_in_ == X_base.shape[1]:
                 X_base = scaler_obj.transform(X_base)
             elif hasattr(scaler_obj, "n_features_in_") and scaler_obj.n_features_in_ == 1:
-                # Si le scaler n'attend qu'une variable (ex: l'éclairage seul)
                 X_base[:, 0] = scaler_obj.transform(X_base[:, :1]).flatten()
         except Exception:
             pass
@@ -146,7 +142,6 @@ def preparer_matrice_entrees(df_data: pd.DataFrame, scaler_obj, cle_mod, nb_atte
     if n_feats == nb_attendues:
         return X_base
     elif nb_attendues > n_feats:
-        # Reconstruction dynamique des décalages temporels (ex: ARX à 5 entrées)
         X_adapte = np.zeros((n_echantillons, nb_attendues))
         X_adapte[:, :n_feats] = X_base
         for i in range(n_feats, nb_attendues):
@@ -158,7 +153,6 @@ def preparer_matrice_entrees(df_data: pd.DataFrame, scaler_obj, cle_mod, nb_atte
         return X_base[:, :nb_attendues]
 
 
-# Initialisation et chargement des variables globales
 modeles, scaler = charger_ressources()
 
 if "donnees" not in st.session_state:
@@ -166,7 +160,7 @@ if "donnees" not in st.session_state:
 if "nom_fichier" not in st.session_state:
     st.session_state.nom_fichier = None
 
-# ── BARRE LATÉRALE (NAVIGATION) ──
+# ── BARRE LATÉRALE ──
 with st.sidebar:
     st.markdown("<div style='text-align:center; padding: 10px 0;'><div style='font-size:3rem;'>☀️</div></div>", unsafe_allow_html=True)
     st.markdown("### 🗂️ Menu Principal")
@@ -175,7 +169,8 @@ with st.sidebar:
         [
             "🏠 Accueil & Présentation", 
             "📂 Importation des Données", 
-            "📊 Évaluation & Graphiques"
+            "📊 Évaluation & Graphiques",
+            "🔮 Prédiction Future"
         ]
     )
     st.divider()
@@ -185,42 +180,27 @@ with st.sidebar:
     nom_court = nom_modele_selectionne.split("—")[0].strip()
 
 
-# ── 1. NOUVELLE PAGE D'ACCUEIL AVEC PHOTO EN BANNIÈRE LARGE ──
+# ── PAGE 1 : ACCUEIL & PRÉSENTATION ──
 if page == "🏠 Accueil & Présentation":
-    
-    # Affichage de l'image sur toute la largeur (use_container_width=True) au tout début
     if os.path.exists("panneau_pv.jpg"):
-        st.image(
-            "panneau_pv.jpg", 
-            caption="Dispositif expérimental d'acquisition et de production photovoltaïque", 
-            use_container_width=True
-        )
-    else:
-        st.info("💡 Pour afficher votre photo ici sur toute la largeur, téléversez 'panneau_pv.jpg' sur GitHub.")
-
-    # Titre centralisé sous l'image
+        st.image("panneau_pv.jpg", caption="Dispositif expérimental d'acquisition et de production photovoltaïque", use_container_width=True)
+    
     st.markdown(
         """
         <div style="text-align: center; margin-top: 25px; margin-bottom: 25px;">
             <span class="badge-pfe">PROJET DE FIN D'ÉTUDES (PFE)</span>
             <h1 style="font-size: 2.3rem;">Prédiction de la Production d'Énergie Photovoltaïque par Intelligence Artificielle</h1>
-            <p style="font-size: 1.1rem; color: #495057; max-width: 900px; margin: 0 auto; padding-top: 8px;">
-                Application d'ingénierie des systèmes et de traitement du signal dédiée à la modélisation prédictive 
-                et à l'analyse comparative des performances de modèles d'IA à partir de données météorologiques.
-            </p>
         </div>
         <hr style="border-color: #DEE2E6; margin-bottom: 30px;"/>
         """, 
         unsafe_allow_html=True
     )
     
-    # Organisation des informations en colonnes sous la bannière
     col_gauche, col_droite = st.columns([1, 1], gap="large")
-    
     with col_gauche:
         st.markdown("### 📝 Fiche Technique du Projet")
         st.markdown(
-            """
+            f"""
             <div class="cadre-accueil">
                 <h4 style="color:#E65100; margin-top:0; font-size:1.15rem;">👥 Réalisé par :</h4>
                 <ul style="font-size: 1.05rem; line-height: 1.7; margin-bottom: 15px;">
@@ -232,8 +212,8 @@ if page == "🏠 Accueil & Présentation":
                 </p>
                 <hr style="margin: 15px 0; border-color: #DEE2E6;"/>
                 <h4 style="color:#E65100; font-size:1.15rem;">👨‍🏫 Encadré par :</h4>
-                <p style="font-size: 1.05rem; margin-bottom: 5px;"><b>Pr. Mohammed Sahlaoui</b></p>
-                <p style="font-size: 1.05rem;"><b>Dr. Abdelkader Ghezouani</b></p>
+                <p style="font-size: 1.05rem; margin-bottom: 5px;"><b>M. Anisse CHIALI</b></p>
+                <p style="font-size: 1.05rem;"><b>Mme Imane NEDJAR</b></p>
             </div>
             """, 
             unsafe_allow_html=True
@@ -256,10 +236,9 @@ if page == "🏠 Accueil & Présentation":
         )
 
 
-# ── 2. PAGE : IMPORTATION DES DONNÉES ──
+# ── PAGE 2 : IMPORTATION DES DONNÉES ──
 elif page == "📂 Importation des Données":
     st.title("📂 Importation des Données Capteurs")
-    
     fichier_charge = st.file_uploader("Téléverser votre fichier Excel ou CSV provenant des capteurs :", type=["xlsx", "xls", "csv"])
     
     if fichier_charge is not None:
@@ -268,13 +247,11 @@ elif page == "📂 Importation des Données":
                 df_input = pd.read_csv(fichier_charge, sep=None, engine="python")
             else:
                 df_input = pd.read_excel(fichier_charge)
-                
             st.session_state.donnees = df_input
             st.session_state.nom_fichier = fichier_charge.name
             st.success(f"✅ Fichier '{fichier_charge.name}' chargé avec succès !")
         except Exception as e:
             st.error(f"❌ Erreur lors de la lecture du fichier : {e}")
-            
     elif st.session_state.donnees is None and os.path.exists(FICHIER_EXEMPLE):
         try:
             st.session_state.donnees = pd.read_excel(FICHIER_EXEMPLE)
@@ -284,37 +261,32 @@ elif page == "📂 Importation des Données":
             pass
 
     if st.session_state.donnees is not None:
-        st.markdown(f"### 📋 Tableau de Mesures Actuel (`{st.session_state.nom_fichier}`)" )
+        st.markdown(f"### 📋 Tableau de Mesures Actuel (`{st.session_state.nom_fichier}`)")
         st.dataframe(st.session_state.donnees.head(15), use_container_width=True)
 
 
-# ── 3. PAGE : ÉVALUATION ET GRAPHES ──
+# ── PAGE 3 : ÉVALUATION ET GRAPHES ──
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Traitement & Évaluation des Modèles d'IA")
-    
     if st.session_state.donnees is None:
-        st.warning("⚠️ Veuillez d'abord importer ou charger un fichier de données dans l'onglet 'Importation des Données'.")
+        st.warning("⚠️ Veuillez d'abord importer un fichier de données dans l'onglet 'Importation des Données'.")
         st.stop()
         
     df = st.session_state.donnees.copy()
-    
-    # Validation stricte des colonnes réelles du fichier Excel
     colonnes_manquantes = [c for c in COLONNES_REQUISES if c not in df.columns]
     if colonnes_manquantes:
         st.error(f"❌ Colonnes météo manquantes dans votre fichier : {colonnes_manquantes}")
-        st.info("Votre fichier Excel doit obligatoirement contenir les en-têtes exacts suivants : `LDR_Raw`, `Hum_%` et `Temp_C`")
         st.stop()
         
     if COLONNE_CIBLE not in df.columns:
-        st.error(f"❌ La colonne cible de puissance mesurée `{COLONNE_CIBLE}` est introuvable dans le fichier.")
+        st.error(f"❌ La colonne cible de puissance mesurée `{COLONNE_CIBLE}` est introuvable.")
         st.stop()
 
     obj_modele = modeles.get(cle_modele)
     if obj_modele is None:
-        st.error(f"❌ Le modèle binaire pour {nom_court} est introuvable ou n'a pas pu être chargé depuis votre dépôt.")
+        st.error(f"❌ Le modèle pour {nom_court} est introuvable. Vérifiez l'emplacement de vos fichiers .pkl/.h5.")
         st.stop()
 
-    # Détection automatique du nombre d'entrées attendues par l'architecture
     if hasattr(obj_modele, "n_features_in_"):
         n_attendues = obj_modele.n_features_in_
     elif hasattr(obj_modele, "input_shape") and obj_modele.input_shape is not None:
@@ -324,29 +296,23 @@ elif page == "📊 Évaluation & Graphiques":
     else:
         n_attendues = 5
 
-    # Préparation et normalisation
     X_final = preparer_matrice_entrees(df, scaler, cle_modele, n_attendues)
     
-    # Exécution des prédictions selon la nature du modèle
     try:
         if cle_modele in ["gru", "lstm"]:
             X_3d = np.reshape(X_final, (X_final.shape[0], 1, X_final.shape[1]))
             y_pred = obj_modele.predict(X_3d, verbose=0).flatten()
         else:
             y_pred = obj_modele.predict(X_final).flatten()
-            
-        # Sécurité : Pas de puissance négative possible physiquement
         y_pred = np.clip(y_pred, a_min=0, a_max=None)
-        
     except Exception as e:
-        st.error(f"❌ Erreur lors du calcul mathématique du modèle {nom_court} : {e}")
+        st.error(f"❌ Erreur lors du calcul mathématique : {e}")
         st.stop()
 
     y_reel = df[COLONNE_CIBLE].values.astype(float)
     taille_min = min(len(y_reel), len(y_pred))
     y_reel, y_pred = y_reel[:taille_min], y_pred[:taille_min]
 
-    # Calcul des indicateurs de performance (Traitement du signal)
     from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
     rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
     mae  = mean_absolute_error(y_reel, y_pred)
@@ -361,30 +327,95 @@ elif page == "📊 Évaluation & Graphiques":
     with c3:
         st.markdown(f'<div class="carte-metrique"><div class="valeur">{r2:.4f}</div><div class="label">R² (Score Global)</div></div>', unsafe_allow_html=True)
 
-    # Graphique interactif Plotly
     st.markdown("### 📈 Courbes Comparatives")
     indices = list(range(len(y_reel)))
-    
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=indices, y=y_reel,
-        name="⚡ Puissance Réelle (Mesurée)",
-        mode="lines", line=dict(color="#1A73E8", width=2)
-    ))
-    fig.add_trace(go.Scatter(
-        x=indices, y=y_pred,
-        name=f"🤖 Puissance Prédite ({nom_court})",
-        mode="lines", line=dict(color="#FF6B2B", width=2, dash="dash")
-    ))
-    
+    fig.add_trace(go.Scatter(x=indices, y=y_reel, name="⚡ Puissance Réelle (Mesurée)", mode="lines", line=dict(color="#1A73E8", width=2)))
+    fig.add_trace(go.Scatter(x=indices, y=y_pred, name=f"🤖 Puissance Prédite ({nom_court})", mode="lines", line=dict(color="#FF6B2B", width=2, dash="dash")))
     fig.update_layout(
         title=f"Validation croisée : Puissance réelle mesurée vs Puissance prédite par {nom_court}",
         xaxis=dict(title="Points de mesure (Séquence Temporelle)", gridcolor="#E5E5E5"),
         yaxis=dict(title="Puissance Électrique (mW)", gridcolor="#E5E5E5"),
-        plot_bgcolor="#FFFFFF",
-        paper_bgcolor="#F8F9FA",
-        margin=dict(l=40, r=40, t=50, b=40),
-        hovermode="x unified"
+        plot_bgcolor="#FFFFFF", paper_bgcolor="#F8F9FA", hovermode="x unified"
     )
-    
     st.plotly_chart(fig, use_container_width=True)
+
+
+# ── NOUVELLE PAGE 3 : PRÉDICTION FUTURE INTERACTIVE ──
+elif page == "🔮 Prédiction Future":
+    st.title("🔮 Espace de Test & Prédictions Futures")
+    
+    obj_modele = modeles.get(cle_modele)
+    if obj_modele is None:
+        st.error(f"❌ Veuillez d'abord charger le modèle {nom_court} depuis votre espace de stockage.")
+        st.stop()
+
+    if hasattr(obj_modele, "n_features_in_"):
+        n_attendues = obj_modele.n_features_in_
+    elif hasattr(obj_modele, "input_shape") and obj_modele.input_shape is not None:
+        n_attendues = obj_modele.input_shape[-1]
+    elif cle_modele == "anfis":
+        n_attendues = 3
+    else:
+        n_attendues = 5
+
+    mode_test = st.radio("Choisissez la méthode de test :", ["🎛️ Saisie manuelle par curseurs (Point unique)", "📈 Simulation sur horizon temporel futur"])
+    
+    if mode_test == "🎛️ Saisie manuelle par curseurs (Point unique)":
+        st.markdown("### Ajustez les conditions météo simulées :")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            val_ldr = h = st.slider("Éclairage Capteur (LDR_Raw)", min_value=0, max_value=4095, value=1400, step=1)
+        with c2:
+            val_hum = st.slider("Humidité relative (Hum_%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
+        with c3:
+            val_temp = st.slider("Température Ambiante (Temp_C)", min_value=-5.0, max_value=55.0, value=25.0, step=0.1)
+            
+        # Création d'une ligne temporaire
+        df_temp = pd.DataFrame([{ "LDR_Raw": val_ldr, "Hum_%": val_hum, "Temp_C": val_temp }])
+        X_pt = preparer_matrice_entrees(df_temp, scaler, cle_modele, n_attendues)
+        
+        try:
+            if cle_modele in ["gru", "lstm"]:
+                X_pt_3d = np.reshape(X_pt, (X_pt.shape[0], 1, X_pt.shape[1]))
+                pred_val = obj_modele.predict(X_pt_3d, verbose=0).flatten()[0]
+            else:
+                pred_val = obj_modele.predict(X_pt).flatten()[0]
+            pred_val = max(0.0, pred_val)
+            
+            st.markdown("---")
+            st.markdown(f"#### ⚡ Puissance Électrique Estimée par {nom_court} :")
+            st.markdown(f'<div style="background-color:#FFF3CD; border-left:6px solid #FF6B2B; padding:20px; border-radius:8px; font-size:24px; font-weight:bold; color:#E65100;">{pred_val:.2f} mW</div>', unsafe_allow_html=True)
+        except Exception as e:
+            st.error(f"Erreur d'inférence : {e}")
+            
+    else:
+        st.markdown("### Simulation sur un Horizon Temporel")
+        if st.session_state.donnees is None:
+            st.warning("⚠️ Veuillez importer un fichier de données dans l'onglet 'Importation' pour projeter un horizon.")
+            st.stop()
+            
+        horizon = st.slider("Nombre de points futurs à simuler :", min_value=5, max_value=100, value=30)
+        df_horizon = st.session_state.donnees.copy().head(horizon)
+        
+        X_hor = preparer_matrice_entrees(df_horizon, scaler, cle_modele, n_attendues)
+        
+        try:
+            if cle_modele in ["gru", "lstm"]:
+                X_hor_3d = np.reshape(X_hor, (X_hor.shape[0], 1, X_hor.shape[1]))
+                preds_hor = obj_modele.predict(X_hor_3d, verbose=0).flatten()
+            else:
+                preds_hor = obj_modele.predict(X_hor).flatten()
+            preds_hor = np.clip(preds_hor, a_min=0, a_max=None)
+            
+            fig_futur = go.Figure()
+            fig_futur.add_trace(go.Scatter(y=preds_hor, mode="lines+markers", name="Prédiction Horizon", line=dict(color="#E65100", width=3)))
+            fig_futur.update_layout(
+                title=f"Horizon Prévisionnel de Puissance Électrique ({nom_court})",
+                xaxis=dict(title="Index Temporel Futur (+t)", gridcolor="#E5E5E5"),
+                yaxis=dict(title="Puissance Prédite (mW)", gridcolor="#E5E5E5"),
+                plot_bgcolor="#FFFFFF", paper_bgcolor="#F8F9FA"
+            )
+            st.plotly_chart(fig_futur, use_container_width=True)
+        except Exception as e:
+            st.error(f"Erreur calcul horizon : {e}")
