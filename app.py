@@ -218,4 +218,110 @@ if page == "📂 Importation des Données":
     # Visualisation des données brutes importées
     if st.session_state.donnees is not None:
         st.markdown(f"### 📋 Aperçu du fichier : `{st.session_state.nom_fichier}`")
-        st.dataframe(st.session_state.donnees.head(
+        st.dataframe(st.session_state.donnees.head(15), use_container_width=True)
+
+
+# ── PAGE 2 : ÉVALUATION ET GRAPHISME ──
+elif page == "📊 Évaluation & Graphiques":
+    st.title("📊 Traitement & Évaluation des Modèles d'IA")
+    
+    if st.session_state.donnees is None:
+        st.warning("⚠️ Veuillez d'abord importer un fichier de données dans l'onglet 'Importation'.")
+        st.stop()
+        
+    df = st.session_state.donnees.copy()
+    
+    # Vérification stricte de la présence des colonnes physiques observées dans votre fichier
+    colonnes_manquantes = [c for c in COLONNES_REQUISES if c not in df.columns]
+    if colonnes_manquantes:
+        st.error(f"❌ Colonnes météo manquantes dans votre fichier : {colonnes_manquantes}")
+        st.info("Votre fichier doit contenir : `LDR_Raw`, `Hum_%` et `Temp_C`")
+        st.stop()
+        
+    if COLONNE_CIBLE not in df.columns:
+        st.error(f"❌ La colonne cible de puissance mesurée `{COLONNE_CIBLE}` est introuvable.")
+        st.stop()
+
+    # Récupération du modèle choisi
+    obj_modele = modeles.get(cle_modele)
+    if obj_modele is None:
+        st.error(f"❌ Le modèle {nom_court} n'est pas chargé. Vérifiez la présence du fichier correspondant.")
+        st.stop()
+
+    # Détermination du nombre exact d'entrées attendu par l'algorithme chargé
+    if hasattr(obj_modele, "n_features_in_"):
+        n_attendues = obj_modele.n_features_in_
+    elif hasattr(obj_modele, "input_shape") and obj_modele.input_shape is not None:
+        n_attendues = obj_modele.input_shape[-1]
+    elif cle_modele == "anfis":
+        n_attendues = 3
+    else:
+        n_attendues = 5 # Valeur par défaut protectrice pour votre ARX
+
+    # Préparation et mise en forme de la matrice X
+    X_final = preparer_matrice_entrees(df, scaler, cle_modele, n_attendues)
+    
+    # Calcul des prédictions selon la nature du modèle
+    try:
+        if cle_modele in ["gru", "lstm"]:
+            # Passage au format 3D [Échantillons, Pas de temps, Features] requis par Keras
+            X_3d = np.reshape(X_final, (X_final.shape[0], 1, X_final.shape[1]))
+            y_pred = obj_modele.predict(X_3d, verbose=0).flatten()
+        else:
+            y_pred = obj_modele.predict(X_final).flatten()
+            
+        # Forcer les valeurs aberrantes négatives à 0 (sécurité physique pour le photovoltaïque)
+        y_pred = np.clip(y_pred, a_min=0, a_max=None)
+        
+    except Exception as e:
+        st.error(f"❌ Erreur lors du calcul mathématique du modèle : {e}")
+        st.stop()
+
+    # Alignement des tableaux pour le tracé
+    y_reel = df[COLONNE_CIBLE].values.astype(float)
+    taille_min = min(len(y_reel), len(y_pred))
+    y_reel, y_pred = y_reel[:taille_min], y_pred[:taille_min]
+
+    # Calcul des métriques d'erreur de traitement du signal
+    from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+    rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
+    mae  = mean_absolute_error(y_reel, y_pred)
+    r2   = r2_score(y_reel, y_pred)
+
+    # Affichage des indicateurs de performance
+    st.markdown(f"### 📐 Indicateurs de Performance — {nom_court}")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f'<div class="carte-metrique"><div class="valeur">{rmse:.2f}</div><div class="label">RMSE (mW)</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="carte-metrique"><div class="valeur">{mae:.2f}</div><div class="label">MAE (mW)</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="carte-metrique"><div class="valeur">{r2:.4f}</div><div class="label">R² (Score Global)</div></div>', unsafe_allow_html=True)
+
+    # ── TRACÉ DU GRAPHIQUE INTERACTIF PLOTLY ──
+    st.markdown("### 📈 Courbes Comparatives")
+    indices = list(range(len(y_reel)))
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=indices, y=y_reel,
+        name="⚡ Puissance Réelle (Mesurée)",
+        mode="lines", line=dict(color="#1A73E8", width=2)
+    ))
+    fig.add_trace(go.Scatter(
+        x=indices, y=y_pred,
+        name=f"🤖 Puissance Prédite ({nom_court})",
+        mode="lines", line=dict(color="#FF6B2B", width=2, dash="dash")
+    ))
+    
+    fig.update_layout(
+        title=f"Comparaison Temporelle — Modèle {nom_court}",
+        xaxis=dict(title="Points de mesure (Chronologique)", gridcolor="#E5E5E5"),
+        yaxis=dict(title="Puissance Électrique (mW)", gridcolor="#E5E5E5"),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#F8F9FA",
+        margin=dict(l=40, r=40, t=50, b=40),
+        hovermode="x unified"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
