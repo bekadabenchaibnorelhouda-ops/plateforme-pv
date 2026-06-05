@@ -116,30 +116,27 @@ elif page == "📂 Importation des Données":
         st.subheader("📊 Statistiques des données")
         st.table(df.describe().loc[['min', 'max', 'mean', 'std']])
 
-# --- PAGE 3 ---
-elif page == "📊 Évaluation & Graphiques":
-    st.title("📊 Évaluation")
+# --- PAGE 3 ---# ... (dans la partie 📊 Évaluation & Graphiques)
     if st.session_state.donnees is not None:
-        df = st.session_state.donnees.dropna()
+        df = st.session_state.donnees.copy()
         
-        # CORRECTION : Sélection dynamique des colonnes selon le modèle
-        if cle_modele in ["arx", "anfis"]:
-            X = df[["LDR_Raw"]].values
-        else:
-            X = df[COLONNES_REQUISES].values
-            
+        # 1. On crée les colonnes manquantes pour que le modèle en retrouve 5
+        # Remplissez avec 0 ou la moyenne si elles ne servent pas
+        for col in ["Colonnes_Manquantes_1", "Colonnes_Manquantes_2", "Colonnes_Manquantes_3", "Colonnes_Manquantes_4"]:
+            if col not in df.columns:
+                df[col] = 0 # On ajoute les colonnes manquantes avec des zéros
+        
+        # 2. Maintenant on sélectionne les 5 colonnes que le modèle attend
+        # Ajustez les noms ci-dessous pour correspondre aux 5 colonnes de votre modèle
+        X = df[["LDR_Raw", "Hum_%", "Temp_C", "Col_4", "Col_5"]].values
+        
         y_reel = df[COLONNE_CIBLE].values
         
-        # CORRECTION : On vérifie si le scaler accepte bien X avant de transformer
+        # 3. Le reste du code peut rester tel quel
         try:
             X_scaled = scaler.transform(X) if scaler else X
             obj_modele = modeles.get(cle_modele)
-            y_pred = obj_modele.predict(X_scaled.reshape(X_scaled.shape[0], 1, X_scaled.shape[1]) if cle_modele in ["gru", "lstm"] else X_scaled).flatten()
-            
-            rmse = np.sqrt(mean_squared_error(y_reel, y_pred))
-            st.metric("RMSE", f"{rmse:.2f}")
-        except Exception as e:
-            st.error(f"Erreur de compatibilité modèle/données : {e}")
+            # ...
 
 # --- PAGE 4 ---
 elif page == "🔮 Prédiction Future":
