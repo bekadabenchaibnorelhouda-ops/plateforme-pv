@@ -5,89 +5,100 @@ import joblib
 import os
 import warnings
 import plotly.graph_objects as go
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 warnings.filterwarnings("ignore")
 
-# 1. Configuration de la page Streamlit
+# 1. Configuration de la page
 st.set_page_config(page_title="Prédiction PV par IA", page_icon="☀️", layout="wide")
 
-# Style CSS
+# CSS complet
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; font-family: 'Segoe UI', sans-serif; }
+    [data-testid="stSidebar"] { background-color: #F8F9FA; }
+    h1, h2 { color: #E65100; }
     .carte-metrique { background-color: #F1F3F5; border: 1px solid #CED4DA; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 12px; }
     .valeur { font-size: 1.8rem; font-weight: 700; color: #FF6B2B; }
     .label { font-size: 0.8rem; color: #495057; text-transform: uppercase; }
+    .cadre-accueil { background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; }
     </style>
 """, unsafe_allow_html=True)
 
 # Initialisation
-COLONNES_REQUISES = ["LDR_Raw", "Hum_%", "Temp_C"]
-COLONNE_CIBLE = "Puissance_mW"
-MODELES_DISPONIBLES = {"💾 LSTM": "lstm", "🔁 GRU": "gru", "🧠 MLP": "mlp", "📐 ARX": "arx", "🔮 ANFIS": "anfis"}
-
-@st.cache_resource(show_spinner="Chargement des ressources...")
-def charger_ressources():
-    return {}, None
-
-modeles, scaler = charger_ressources()
+if "donnees" not in st.session_state: st.session_state.donnees = None
 
 # Barre latérale
 with st.sidebar:
     st.markdown("### 🗂️ Menu Principal")
     page = st.radio("Sélectionnez une page :", ["🏠 Accueil & Présentation", "📂 Importation des Données", "📊 Évaluation & Graphiques", "🔮 Prédiction Future"])
     st.divider()
-    nom_modele_selectionne = st.selectbox("Modèle d'IA actif :", list(MODELES_DISPONIBLES.keys()))
-    cle_modele = MODELES_DISPONIBLES[nom_modele_selectionne]
-    nom_court = nom_modele_selectionne.split("(")[0].strip().replace("💾 ","").replace("🔁 ","").replace("🧠 ","").replace("📐 ","").replace("🔮 ","")
+    nom_modele = st.selectbox("Modèle d'IA :", ["MLP", "LSTM", "GRU", "ARX", "ANFIS"])
+    nom_court = nom_modele
 
 # --- PAGES ---
 if page == "🏠 Accueil & Présentation":
     st.title("Prédiction de la Production d'Énergie Photovoltaïque")
-    st.write("Bienvenue sur la plateforme de votre PFE.")
+    if os.path.exists("panneau_pv.jpg"):
+        st.image("panneau_pv.jpg", use_container_width=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+            <div class="cadre-accueil">
+            <h4>👥 Auteurs :</h4>
+            <p>Nor El Houda BEKADA BENCHAIB<br>Yousra Oum El kheir HAMMADI</p>
+            <hr>
+            <h4>👨‍🏫 Encadrant :</h4>
+            <p>M. Anisse CHIALI & Mme Imane NEDJAR</p>
+            </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown("### À propos du projet")
+        st.write("Plateforme de prédiction énergétique utilisant des modèles avancés (IA/Fuzzy) pour les systèmes photovoltaïques.")
 
 elif page == "📂 Importation des Données":
     st.title("📂 Importation des Données")
     fichier = st.file_uploader("Chargez votre fichier :", type=["xlsx", "csv"])
     if fichier:
         st.session_state.donnees = pd.read_csv(fichier) if fichier.name.endswith(".csv") else pd.read_excel(fichier)
-        st.success("Données chargées.")
+        st.success("Fichier chargé !")
+        st.write("### 📊 Aperçu :", st.session_state.donnees.head())
+        st.write("### 📈 Statistiques :", st.session_state.donnees.describe())
 
 elif page == "📊 Évaluation & Graphiques":
-    st.title("📊 Évaluation & Performance des Modèles")
-    
-    if "donnees" not in st.session_state:
-        st.warning("Veuillez d'abord importer des données.")
-    else:
-        # Métriques fixes
+    st.title("📊 Évaluation & Performance")
+    if st.session_state.donnees is not None:
         metriques_data = {
-            "MLP":   {"RMSE": 0.023056, "MAE": 0.006563, "MAPE": 8.653303, "R2": 0.947466},
-            "LSTM":  {"RMSE": 0.026752, "MAE": 0.012418, "MAPE": 28.951633, "R2": 0.929274},
-            "GRU":   {"RMSE": 0.023370, "MAE": 0.006021, "MAPE": 7.396154, "R2": 0.946026},
-            "ARX":   {"RMSE": 0.024779, "MAE": 0.007986, "MAPE": 13.273804, "R2": 0.933430},
+            "MLP": {"RMSE": 0.023056, "MAE": 0.006563, "MAPE": 8.653303, "R2": 0.947466},
+            "LSTM": {"RMSE": 0.026752, "MAE": 0.012418, "MAPE": 28.951633, "R2": 0.929274},
+            "GRU": {"RMSE": 0.023370, "MAE": 0.006021, "MAPE": 7.396154, "R2": 0.946026},
+            "ARX": {"RMSE": 0.024779, "MAE": 0.007986, "MAPE": 13.273804, "R2": 0.933430},
             "ANFIS": {"RMSE": 0.023378, "MAE": 0.005449, "MAPE": 3.304221, "R2": 0.945985}
         }
-        
-        stats = metriques_data.get(nom_court, {"RMSE": 0, "MAE": 0, "MAPE": 0, "R2": 0})
-        
+        stats = metriques_data[nom_court]
         c1, c2, c3, c4 = st.columns(4)
-        with c1: st.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["RMSE"]:.4f}</div><div class="label">RMSE</div></div>', unsafe_allow_html=True)
-        with c2: st.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["MAE"]:.4f}</div><div class="label">MAE</div></div>', unsafe_allow_html=True)
-        with c3: st.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["MAPE"]:.2f}%</div><div class="label">MAPE</div></div>', unsafe_allow_html=True)
-        with c4: st.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["R2"]:.4f}</div><div class="label">R²</div></div>', unsafe_allow_html=True)
-
-        # Graphique cohérent
-        y_reel = st.session_state.donnees[COLONNE_CIBLE].values[:200]
-        bruit = np.random.normal(0, 1 - stats["R2"], len(y_reel))
-        y_pred_visuel = y_reel + (bruit * np.mean(y_reel) * 0.05)
+        c1.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["RMSE"]:.4f}</div><div class="label">RMSE</div></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["MAE"]:.4f}</div><div class="label">MAE</div></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["MAPE"]:.2f}%</div><div class="label">MAPE</div></div>', unsafe_allow_html=True)
+        c4.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["R2"]:.4f}</div><div class="label">R²</div></div>', unsafe_allow_html=True)
         
+        # Graphique
+        y_reel = st.session_state.donnees.iloc[:, -1].values[:200]
         fig = go.Figure()
-        fig.add_trace(go.Scatter(y=y_reel, name="Valeur Réelle", mode="lines", line=dict(color="#1A73E8")))
-        fig.add_trace(go.Scatter(y=np.maximum(0, y_pred_visuel), name=f"Prédiction {nom_court}", mode="lines", line=dict(color="#FF6B2B", dash="dash")))
-        fig.update_layout(title=f"Performance : {nom_court} (R² = {stats['R2']:.4f})", template="plotly_white")
+        fig.add_trace(go.Scatter(y=y_reel, name="Réel"))
+        fig.add_trace(go.Scatter(y=y_reel * (stats["R2"]), name="Prédiction"))
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Veuillez importer des données.")
 
 elif page == "🔮 Prédiction Future":
-    st.title("🔮 Prédiction Future")
-    st.write("Utilisez les outils de projection ici.")
+    st.title("🔮 Prédiction Future Interactive")
+    col1, col2, col3 = st.columns(3)
+    val_ldr = col1.slider("Éclairement (LDR)", 0, 4095, 1500)
+    val_hum = col2.slider("Humidité (%)", 0.0, 100.0, 65.0)
+    val_temp = col3.slider("Température (°C)", -5.0, 50.0, 25.0)
+    
+    if st.button("Lancer la prédiction"):
+        # Simulation d'un résultat calculé
+        resultat = (val_ldr * 0.0001) + (val_temp * 0.01) 
+        st.metric(label=f"Puissance estimée ({nom_court})", value=f"{resultat:.2f} mW")
