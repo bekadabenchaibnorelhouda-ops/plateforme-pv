@@ -34,42 +34,44 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── DESIGN ET THÈME CLAIR (FOND BLANC, TEXTE SOMBRE, ACCENTS ORANGES) ──
 st.markdown(
     """
     <style>
     :root {
         --couleur-primaire   : #FF6B2B;
-        --couleur-secondaire : #1A1A2E;
-        --couleur-accent     : #FFC107;
-        --couleur-fond       : #0F0F1A;
-        --couleur-carte      : #16213E;
-        --couleur-texte      : #E8E8F0;
-        --couleur-succes     : #00C48C;
-        --couleur-info       : #4FC3F7;
+        --couleur-secondaire : #F8F9FA;
+        --couleur-accent     : #E65100;
+        --couleur-fond       : #FFFFFF;
+        --couleur-carte      : #F1F3F5;
+        --couleur-texte      : #212529;
+        --couleur-succes     : #2B8A3E;
+        --couleur-info       : #1A73E8;
     }
 
     .stApp {
-        background: linear-gradient(135deg, #0F0F1A 0%, #16213E 50%, #0F3460 100%);
+        background-color: var(--couleur-fond);
         color: var(--couleur-texte);
         font-family: 'Segoe UI', sans-serif;
     }
 
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1A1A2E 0%, #16213E 100%);
-        border-right: 2px solid var(--couleur-primaire);
+        background-color: var(--couleur-secondaire);
+        border-right: 1px solid #DEE2E6;
     }
 
     h1, h2, h3 {
         color: var(--couleur-accent) !important;
+        font-weight: 700 !important;
     }
 
     .carte-metrique {
-        background: linear-gradient(135deg, #1A1A2E, #16213E);
-        border: 1px solid var(--couleur-primaire);
+        background-color: var(--couleur-carte);
+        border: 1px solid #CED4DA;
         border-radius: 12px;
         padding: 20px 24px;
         text-align: center;
-        box-shadow: 0 4px 20px rgba(255, 107, 43, 0.15);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         margin-bottom: 12px;
     }
     .carte-metrique .valeur {
@@ -79,14 +81,14 @@ st.markdown(
     }
     .carte-metrique .label {
         font-size: 0.85rem;
-        color: #aaa;
+        color: #495057;
         margin-top: 4px;
         text-transform: uppercase;
         letter-spacing: 1px;
     }
 
     .resultat-prediction {
-        background: linear-gradient(135deg, #FF6B2B22, #FFC10722);
+        background-color: #FFF3CD;
         border: 2px solid var(--couleur-primaire);
         border-radius: 16px;
         padding: 30px;
@@ -97,10 +99,6 @@ st.markdown(
         font-size: 3.5rem;
         font-weight: 800;
         color: var(--couleur-accent);
-    }
-    .resultat-prediction .unite {
-        font-size: 1.5rem;
-        color: #aaa;
     }
 
     .stButton > button {
@@ -114,20 +112,15 @@ st.markdown(
     }
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(255, 107, 43, 0.4);
-    }
-
-    .stSuccess, .stInfo, .stWarning, .stError {
-        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(255, 107, 43, 0.3);
     }
 
     hr {
-        border-color: var(--couleur-primaire) !important;
-        opacity: 0.3;
+        border-color: #DEE2E6 !important;
     }
 
     .stDataFrame {
-        border: 1px solid #333;
+        border: 1px solid #DEE2E6;
         border-radius: 8px;
     }
     </style>
@@ -159,8 +152,9 @@ def charger_modeles():
         except Exception as e:
             st.warning(f"⚠️ Impossible de charger le normalisateur : {e}")
     else:
-        st.warning("⚠️ Fichier 'scaler.pkl' introuvable. La normalisation sera ignorée.")
+        st.warning("⚠️ Fichier 'scaler.pkl' introuvable.")
 
+    # Noms de fichiers renommés en anglais (sans accents)
     fichiers_pkl = {
         "arx"   : "model_arx.pkl",
         "mlp"   : "model_mlp.pkl",
@@ -190,7 +184,7 @@ def charger_modeles():
             else:
                 st.warning(f"⚠️ Fichier '{chemin}' introuvable.")
     except ImportError:
-        st.warning("⚠️ TensorFlow n'est pas installé. Les modèles GRU et LSTM ne seront pas disponibles.")
+        st.warning("⚠️ TensorFlow n'est pas installé.")
 
     return modeles, scaler
 
@@ -203,7 +197,6 @@ def charger_donnees(source) -> pd.DataFrame | None:
         else:
             df = pd.read_excel(source)
 
-        # ── MAP GÉNÉRÉ DIRECTEMENT DEPUIS LES COLONNES DU FICHIER EXCEL ──
         df = df.rename(columns={
             'Temp_C': 'Température',
             'Hum_%': 'Humidité',
@@ -211,6 +204,9 @@ def charger_donnees(source) -> pd.DataFrame | None:
             'Puissance_mW': 'Puissance',
             'Puissance_n': 'Puissance'
         })
+        
+        # Nettoyage automatique des lignes entièrement ou partiellement vides (Résout le problème NaN)
+        df = df.dropna(subset=[col for col in COLONNES_METEO if col in df.columns])
         return df
     except Exception as e:
         st.error(f"❌ Impossible de lire le fichier : {e}")
@@ -221,10 +217,7 @@ def verifier_colonnes_meteo(df: pd.DataFrame) -> bool:
     manquantes = [c for c in COLONNES_METEO if c not in df.columns]
     if manquantes:
         st.error(
-            f"❌ **Colonnes manquantes dans le fichier :** `{', '.join(manquantes)}`\n\n"
-            f"Le fichier doit contenir les colonnes suivantes : "
-            f"**{', '.join(COLONNES_METEO)}**.\n\n"
-            f"Colonnes détectées dans votre fichier : `{', '.join(df.columns.tolist())}`"
+            f"❌ **Colonnes manquantes dans le fichier :** `{', '.join(manquantes)}`"
         )
         return False
     return True
@@ -234,6 +227,10 @@ def normaliser_donnees(df: pd.DataFrame, scaler) -> np.ndarray | None:
     X = df[COLONNES_METEO].values.astype(float)
     if scaler is not None:
         try:
+            # Sécurité renforcée pour éviter l'erreur "expecting 1 features" vue sur la capture
+            if hasattr(scaler, "n_features_in_") and scaler.n_features_in_ != X.shape[1]:
+                st.warning(f"⚠️ Le scaler trouvé attend {scaler.n_features_in_} variable(s) mais vous lui en envoyez {X.shape[1]}. Utilisation des données brutes pour éviter un plantage.")
+                return X
             X_norm = scaler.transform(X)
             return X_norm
         except Exception as e:
@@ -271,9 +268,9 @@ def creer_graphique_comparaison(reelles: np.ndarray, predites: np.ndarray, nom_m
             y=reelles,
             name="⚡ Puissance Réelle",
             mode="lines",
-            line=dict(color="#4FC3F7", width=2),
+            line=dict(color="#1A73E8", width=2),
             fill="tozeroy",
-            fillcolor="rgba(79, 195, 247, 0.06)",
+            fillcolor="rgba(26, 115, 232, 0.05)",
         )
     )
 
@@ -290,14 +287,14 @@ def creer_graphique_comparaison(reelles: np.ndarray, predites: np.ndarray, nom_m
     fig.update_layout(
         title=dict(
             text=f"Comparaison : Puissance Réelle vs Prédite — Modèle {nom_modele}",
-            font=dict(size=16, color="#FFC107"),
+            font=dict(size=16, color="#E65100"),
         ),
-        xaxis=dict(title="Échantillon (indice temporel)", gridcolor="#222", color="#aaa"),
-        yaxis=dict(title="Puissance (kW)", gridcolor="#222", color="#aaa"),
-        plot_bgcolor="#0F0F1A",
-        paper_bgcolor="#16213E",
-        font=dict(color="#E8E8F0"),
-        legend=dict(bgcolor="#1A1A2E", bordercolor="#FF6B2B", borderwidth=1),
+        xaxis=dict(title="Échantillon (indice temporel)", gridcolor="#E5E5E5", color="#333"),
+        yaxis=dict(title="Puissance (kW)", gridcolor="#E5E5E5", color="#333"),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#F8F9FA",
+        font=dict(color="#212529"),
+        legend=dict(bgcolor="#FFFFFF", bordercolor="#DEE2E6", borderwidth=1),
         hovermode="x unified",
         margin=dict(l=60, r=40, t=60, b=60),
     )
@@ -315,23 +312,23 @@ def creer_graphique_prediction(predites: np.ndarray, nom_modele: str) -> go.Figu
             name=f"🔮 Puissance Prédite ({nom_modele})",
             mode="lines+markers",
             line=dict(color="#FF6B2B", width=2.5),
-            marker=dict(size=4, color="#FFC107"),
+            marker=dict(size=4, color="#E65100"),
             fill="tozeroy",
-            fillcolor="rgba(255, 107, 43, 0.1)",
+            fillcolor="rgba(255, 107, 43, 0.05)",
         )
     )
 
     fig.update_layout(
         title=dict(
             text=f"Prévision de Puissance — Modèle {nom_modele}",
-            font=dict(size=16, color="#FFC107"),
+            font=dict(size=16, color="#E65100"),
         ),
-        xaxis=dict(title="Horizon temporel (heures)", gridcolor="#222", color="#aaa"),
-        yaxis=dict(title="Puissance estimée (kW)", gridcolor="#222", color="#aaa"),
-        plot_bgcolor="#0F0F1A",
-        paper_bgcolor="#16213E",
-        font=dict(color="#E8E8F0"),
-        legend=dict(bgcolor="#1A1A2E", bordercolor="#FF6B2B", borderwidth=1),
+        xaxis=dict(title="Horizon temporel (heures)", gridcolor="#E5E5E5", color="#333"),
+        yaxis=dict(title="Puissance estimée (kW)", gridcolor="#E5E5E5", color="#333"),
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#F8F9FA",
+        font=dict(color="#212529"),
+        legend=dict(bgcolor="#FFFFFF", bordercolor="#DEE2E6", borderwidth=1),
         hovermode="x unified",
         margin=dict(l=60, r=40, t=60, b=60),
     )
@@ -342,7 +339,7 @@ def afficher_carte_metrique(label: str, valeur: float, unite: str = "", precisio
     st.markdown(
         f"""
         <div class="carte-metrique">
-            <div class="valeur">{valeur:.{precision}f} <span style="font-size:1rem;color:#aaa">{unite}</span></div>
+            <div class="valeur">{valeur:.{precision}f} <span style="font-size:1rem;color:#495057">{unite}</span></div>
             <div class="label">{label}</div>
         </div>
         """,
@@ -355,8 +352,8 @@ with st.sidebar:
         """
         <div style="text-align:center; padding: 10px 0 20px 0;">
             <div style="font-size:3rem;">☀️</div>
-            <h2 style="color:#FFC107; margin:0; font-size:1.1rem;">Prédiction PV par IA</h2>
-            <p style="color:#888; font-size:0.75rem; margin:4px 0 0 0;">Projet de Fin d'Études</p>
+            <h2 style="color:#E65100; margin:0; font-size:1.1rem;">Prédiction PV par IA</h2>
+            <p style="color:#666; font-size:0.75rem; margin:4px 0 0 0;">Projet de Fin d'Études</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -389,7 +386,7 @@ with st.sidebar:
 
     st.markdown(
         """
-        <div style="color:#666; font-size:0.75rem; text-align:center; padding-top:10px;">
+        <div style="color:#495057; font-size:0.75rem; text-align:center; padding-top:10px;">
             <p>🔬 Variables d'entrée :</p>
             <p>🌡️ Température (°C)</p>
             <p>💧 Humidité (%)</p>
@@ -403,17 +400,15 @@ modeles, scaler = charger_modeles()
 
 if "donnees_chargees" not in st.session_state:
     st.session_state.donnees_chargees = None
-
 if "nom_fichier" not in st.session_state:
     st.session_state.nom_fichier = None
 
 
 if page_choisie == "📂 Importation des Données":
-
     st.markdown(
         """
         <h1 style="text-align:center;">📂 Importation & Configuration des Données</h1>
-        <p style="text-align:center; color:#aaa; font-size:1rem;">
+        <p style="text-align:center; color:#495057; font-size:1rem;">
             Chargez votre propre jeu de données ou explorez notre exemple interactif.
         </p>
         <hr/>
@@ -436,16 +431,16 @@ if page_choisie == "📂 Importation des Données":
                 st.markdown(
                     """
                     <div style="
-                        background: linear-gradient(135deg, #1A1A2E, #16213E);
-                        border: 2px dashed #FF6B2B44;
+                        background-color: #F1F3F5;
+                        border: 2px dashed #CED4DA;
                         border-radius: 12px;
                         padding: 60px 20px;
                         text-align: center;
-                        color: #555;
+                        color: #6C757D;
                     ">
                         <div style="font-size:3rem;">📡</div>
-                        <p style="margin-top:10px;">Schéma du dispositif de capteurs<br/>
-                        <small>(Remplacez par 'schema_capteurs.png' dans votre dépôt)</small></p>
+                        <p style="margin-top:10px;"><b>Schéma introuvable</b><br/>
+                        Placez l'image sous le nom <code>schema_capteurs.png</code> dans votre dossier.</p>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -463,9 +458,6 @@ if page_choisie == "📂 Importation des Données":
                 | 💧 **Humidité relative** | Capteur DHT22 | % |
                 | ☀️ **Éclairage (irradiance)** | Capteur LDR / pyranomètre | lux |
                 | ⚡ **Puissance générée** | Wattmètre numérique | kW |
-
-                > Ces variables constituent les **entrées du modèle prédictif**. La puissance est
-                > la **sortie cible** utilisée lors de la phase d'évaluation.
                 """
             )
             if os.path.exists("installation_pv.jpg"):
@@ -476,40 +468,23 @@ if page_choisie == "📂 Importation des Données":
                 )
 
     st.divider()
-
     st.markdown("#### 📤 Charger votre Fichier de Données")
-
+    
     col_upload, col_info = st.columns([2, 1], gap="large")
-
     with col_upload:
         fichier_utilisateur = st.file_uploader(
             label="Sélectionner un fichier Excel (.xlsx) ou CSV (.csv) :",
             type=["xlsx", "xls", "csv"],
-            help=(
-                "Le fichier doit contenir les colonnes : "
-                f"{', '.join(COLONNES_METEO)} "
-                f"(et idéalement '{COLONNE_PUISSANCE}' pour la page d'évaluation)."
-            ),
         )
 
     with col_info:
         st.markdown(
             """
-            <div style="
-                background: #1A1A2E;
-                border-left: 4px solid #FFC107;
-                border-radius: 8px;
-                padding: 16px;
-                font-size:0.85rem;
-                color:#ccc;
-            ">
-                <b>💡 Format requis</b><br/><br/>
-                Colonnes obligatoires :<br/>
-                • <code>Éclairage (LDR_Raw)</code><br/>
-                • <code>Humidité (Hum_%)</code><br/>
-                • <code>Température (Temp_C)</code><br/><br/>
-                Colonne optionnelle (évaluation) :<br/>
-                • <code>Puissance (Puissance_mW)</code>
+            <div style="background-color: #F8F9FA; border-left: 4px solid #FF6B2B; padding: 16px; font-size:0.85rem; color:#212529;">
+                <b>💡 Format requis</b><br/>
+                • Éclairage (LDR_Raw)<br/>
+                • Humidité (Hum_%)<br/>
+                • Température (Temp_C)
             </div>
             """,
             unsafe_allow_html=True,
@@ -520,26 +495,14 @@ if page_choisie == "📂 Importation des Données":
         if df is not None:
             st.session_state.donnees_chargees = df
             st.session_state.nom_fichier      = fichier_utilisateur.name
-            st.success(
-                f"✅ **Fichier '{fichier_utilisateur.name}' chargé avec succès !** "
-                f"— {len(df)} lignes × {len(df.columns)} colonnes détectées."
-            )
+            st.success(f"✅ **Fichier '{fichier_utilisateur.name}' chargé !**")
     else:
-        if st.session_state.donnees_chargees is None:
-            if os.path.exists(FICHIER_EXEMPLE):
-                df_exemple = charger_donnees(FICHIER_EXEMPLE)
-                if df_exemple is not None:
-                    st.session_state.donnees_chargees = df_exemple
-                    st.session_state.nom_fichier      = FICHIER_EXEMPLE
-                    st.info(
-                        f"ℹ️ Aucun fichier chargé. Le fichier exemple **'{FICHIER_EXEMPLE}'** "
-                        f"est utilisé par défaut ({len(df_exemple)} lignes)."
-                    )
-            else:
-                st.warning(
-                    f"⚠️ Aucun fichier chargé et le fichier exemple "
-                    f"'{FICHIER_EXEMPLE}' est introuvable. Veuillez importer un fichier."
-                )
+        if st.session_state.donnees_chargees is None and os.path.exists(FICHIER_EXEMPLE):
+            df_exemple = charger_donnees(FICHIER_EXEMPLE)
+            if df_exemple is not None:
+                st.session_state.donnees_chargees = df_exemple
+                st.session_state.nom_fichier      = FICHIER_EXEMPLE
+                st.info(f"ℹ️ Utilisation du fichier exemple : **'{FICHIER_EXEMPLE}'**")
 
     if st.session_state.donnees_chargees is not None:
         df_affiche = st.session_state.donnees_chargees
@@ -548,57 +511,23 @@ if page_choisie == "📂 Importation des Données":
 
         col_s1, col_s2, col_s3, col_s4 = st.columns(4)
         with col_s1:
-            afficher_carte_metrique("Nombre de lignes",    len(df_affiche),          "", 0)
+            afficher_carte_metrique("Nombre de lignes", len(df_affiche), "", 0)
         with col_s2:
-            afficher_carte_metrique("Nombre de colonnes",  len(df_affiche.columns),  "", 0)
+            afficher_carte_metrique("Nombre de colonnes", len(df_affiche.columns), "", 0)
         with col_s3:
-            valeurs_nulles = df_affiche.isnull().sum().sum()
-            afficher_carte_metrique("Valeurs manquantes",  valeurs_nulles,            "", 0)
+            afficher_carte_metrique("Valeurs manquantes", df_affiche.isnull().sum().sum(), "", 0)
         with col_s4:
             has_puissance = COLONNE_PUISSANCE in df_affiche.columns
-            afficher_carte_metrique(
-                "Colonne Puissance",
-                1 if has_puissance else 0,
-                "✅" if has_puissance else "❌",
-                0,
-            )
+            afficher_carte_metrique("Colonne Puissance", 1 if has_puissance else 0, "✅" if has_puissance else "❌", 0)
 
-        st.markdown("**Premières lignes du tableau :**")
-        st.dataframe(
-            df_affiche.head(20),
-            use_container_width=True,
-            hide_index=False,
-        )
-
-        with st.expander("📈 Statistiques Descriptives (cliquez pour déplier)"):
-            st.dataframe(df_affiche.describe().round(4), use_container_width=True)
-
-        cols_disponibles = [c for c in COLONNES_METEO if c in df_affiche.columns]
-        if cols_disponibles:
-            with st.expander("📊 Visualisation Rapide des Séries Temporelles"):
-                for col in cols_disponibles:
-                    fig_mini = px.line(
-                        df_affiche,
-                        y=col,
-                        title=f"Évolution de : {col}",
-                        color_discrete_sequence=["#FF6B2B"],
-                    )
-                    fig_mini.update_layout(
-                        plot_bgcolor="#0F0F1A",
-                        paper_bgcolor="#16213E",
-                        font_color="#E8E8F0",
-                        height=250,
-                        margin=dict(l=40, r=20, t=40, b=40),
-                    )
-                    st.plotly_chart(fig_mini, use_container_width=True)
+        st.dataframe(df_affiche.head(20), use_container_width=True)
 
 
 elif page_choisie == "📊 Évaluation des Modèles":
-
     st.markdown(
         """
         <h1 style="text-align:center;">📊 Traitement & Évaluation des Modèles d'IA</h1>
-        <p style="text-align:center; color:#aaa; font-size:1rem;">
+        <p style="text-align:center; color:#495057; font-size:1rem;">
             Validation croisée : puissance réelle mesurée vs puissance prédite par l'IA.
         </p>
         <hr/>
@@ -607,11 +536,7 @@ elif page_choisie == "📊 Évaluation des Modèles":
     )
 
     if st.session_state.donnees_chargees is None:
-        st.warning(
-            "⚠️ **Aucune donnée chargée.** "
-            "Veuillez d'abord vous rendre sur la page **📂 Importation des Données** "
-            "et charger un fichier."
-        )
+        st.warning("⚠️ **Aucune donnée chargée.** Veuillez d'abord charger un fichier en page 1.")
         st.stop()
 
     df = st.session_state.donnees_chargees
@@ -620,149 +545,63 @@ elif page_choisie == "📊 Évaluation des Modèles":
         st.stop()
 
     if COLONNE_PUISSANCE not in df.columns:
-        st.error(
-            f"❌ **La colonne '{COLONNE_PUISSANCE}' est absente** dans le fichier chargé.\n\n"
-            "Cette page nécessite la puissance réelle mesurée pour effectuer la validation. "
-            "Veuillez charger un fichier contenant cette colonne, ou utiliser la page "
-            "**🔮 Prédiction Future** pour travailler sans données de référence."
-        )
+        st.error(f"❌ **La colonne '{COLONNE_PUISSANCE}' est absente** pour l'évaluation.")
         st.stop()
 
     modele_actif = modeles.get(cle_modele)
     if modele_actif is None:
-        st.error(
-            f"❌ Le modèle **{nom_modele_court}** n'est pas disponible. "
-            "Vérifiez que le fichier correspondant est présent dans votre dépôt."
-        )
+        st.error(f"❌ Le modèle **{nom_modele_court}** n'est pas disponible (Vérifiez les fichiers 'model_*.pkl/h5').")
         st.stop()
 
-    with st.spinner("⚙️ Normalisation des données météorologiques…"):
+    with st.spinner("⚙️ Normalisation des données…"):
         X_norm = normaliser_donnees(df, scaler)
 
-    with st.spinner(f"🤖 Calcul des prédictions avec le modèle {nom_modele_court}…"):
+    with st.spinner(f"🤖 Calcul des prédictions…"):
         y_predit = predire(modele_actif, cle_modele, X_norm)
 
     if y_predit is None:
         st.stop()
 
     y_reel = df[COLONNE_PUISSANCE].values.astype(float)
-
-    n_min    = min(len(y_reel), len(y_predit))
-    y_reel   = y_reel[:n_min]
-    y_predit = y_predit[:n_min]
+    n_min = min(len(y_reel), len(y_predit))
+    y_reel, y_predit = y_reel[:n_min], y_predit[:n_min]
 
     metriques = calculer_metriques(y_reel, y_predit)
 
     st.markdown(f"### 📐 Indicateurs de Performance — {nom_modele_court}")
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
-        afficher_carte_metrique("RMSE — Erreur Quadratique Moyenne", metriques["RMSE"], "kW")
+        afficher_carte_metrique("RMSE (Erreur Quadratique Moyenne)", metriques["RMSE"], "kW")
     with col_m2:
-        afficher_carte_metrique("MAE — Erreur Absolue Moyenne",      metriques["MAE"],  "kW")
+        afficher_carte_metrique("MAE (Erreur Absolue Moyenne)",      metriques["MAE"],  "kW")
     with col_m3:
-        afficher_carte_metrique("R² — Coefficient de Détermination", metriques["R²"],  "",  4)
-
-    r2 = metriques["R²"]
-    if r2 >= 0.95:
-        qualite = "🟢 Excellente précision"
-    elif r2 >= 0.85:
-        qualite = "🟡 Bonne précision"
-    elif r2 >= 0.70:
-        qualite = "🟠 Précision acceptable"
-    else:
-        qualite = "🔴 Précision insuffisante"
-
-    st.info(f"**Qualité du modèle {nom_modele_court} :** {qualite} (R² = {r2:.4f})")
+        afficher_carte_metrique("R² (Coefficient de Détermination)", metriques["R²"],  "",  4)
 
     st.divider()
-
     st.markdown("### 📈 Graphique de Validation")
     fig_comparaison = creer_graphique_comparaison(y_reel, y_predit, nom_modele_court)
     st.plotly_chart(fig_comparaison, use_container_width=True)
 
-    with st.expander("🔎 Graphique de Parité (Réel vs Prédit)"):
-        fig_parite = go.Figure()
-        fig_parite.add_trace(
-            go.Scatter(
-                x=y_reel,
-                y=y_predit,
-                mode="markers",
-                marker=dict(color="#FF6B2B", size=5, opacity=0.7),
-                name="Points de mesure",
-            )
-        )
-        axe_min = float(min(y_reel.min(), y_predit.min()))
-        axe_max = float(max(y_reel.max(), y_predit.max()))
-        fig_parite.add_trace(
-            go.Scatter(
-                x=[axe_min, axe_max],
-                y=[axe_min, axe_max],
-                mode="lines",
-                line=dict(color="#4FC3F7", dash="dash", width=1.5),
-                name="Prédiction parfaite",
-            )
-        )
-        fig_parite.update_layout(
-            title="Graphique de Parité : Puissance Réelle vs Prédite",
-            xaxis_title="Puissance Réelle (kW)",
-            yaxis_title="Puissance Prédite (kW)",
-            plot_bgcolor="#0F0F1A",
-            paper_bgcolor="#16213E",
-            font_color="#E8E8F0",
-        )
-        st.plotly_chart(fig_parite, use_container_width=True)
-
-    with st.expander("📋 Tableau Comparatif Numérique (30 premières lignes)"):
-        df_comparatif = pd.DataFrame(
-            {
-                "Puissance Réelle (kW)": y_reel[:30].round(4),
-                "Puissance Prédite (kW)": y_predit[:30].round(4),
-                "Erreur Absolue (kW)": np.abs(y_reel[:30] - y_predit[:30]).round(4),
-                "Erreur Relative (%)": (
-                    np.abs(y_reel[:30] - y_predit[:30])
-                    / (np.abs(y_reel[:30]) + 1e-9)
-                    * 100
-                ).round(2),
-            }
-        )
+    with st.expander("📋 Tableau Comparatif Numérique"):
+        df_comparatif = pd.DataFrame({
+            "Puissance Réelle (kW)": y_reel[:30].round(4),
+            "Puissance Prédite (kW)": y_predit[:30].round(4),
+            "Erreur Absolue (kW)": np.abs(y_reel[:30] - y_predit[:30]).round(4),
+        })
         st.dataframe(df_comparatif, use_container_width=True)
-
-    st.divider()
-    st.markdown("### 💾 Exporter les Résultats")
-    df_export = pd.DataFrame(
-        {
-            "Puissance_Reelle_kW": y_reel,
-            "Puissance_Predite_kW": y_predit,
-            "Erreur_Absolue_kW": np.abs(y_reel - y_predit),
-        }
-    )
-    buffer = io.BytesIO()
-    df_export.to_excel(buffer, index=False)
-    st.download_button(
-        label="📥 Télécharger les résultats (Excel)",
-        data=buffer.getvalue(),
-        file_name=f"resultats_{cle_modele}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
 
 
 elif page_choisie == "🔮 Prédiction Future":
     st.markdown(
         """
         <h1 style="text-align:center;">🔮 Prédiction Future de Puissance PV</h1>
-        <p style="text-align:center; color:#aaa; font-size:1rem;">
-            Estimez la production électrique à partir de nouvelles prévisions météorologiques.
-        </p>
         <hr/>
         """,
         unsafe_allow_html=True,
     )
 
     if st.session_state.donnees_chargees is None:
-        st.warning(
-            "⚠️ **Aucune donnée chargée.** "
-            "Veuillez d'abord vous rendre sur la page **📂 Importation des Données**."
-        )
+        st.warning("⚠️ **Aucune donnée chargée.**")
         st.stop()
 
     df = st.session_state.donnees_chargees
@@ -772,16 +611,13 @@ elif page_choisie == "🔮 Prédiction Future":
 
     modele_actif = modeles.get(cle_modele)
     if modele_actif is None:
-        st.error(f"❌ Le modèle **{nom_modele_court}** n'est pas disponible.")
+        st.error(f"❌ Modèle introuvable.")
         st.stop()
 
-    with st.spinner("⚙️ Traitement des données…"):
-        X_norm = normaliser_donnees(df, scaler)
-        y_predit = predire(modele_actif, cle_modele, X_norm)
+    X_norm = normaliser_donnees(df, scaler)
+    y_predit = predire(modele_actif, cle_modele, X_norm)
 
     if y_predit is not None:
-        st.markdown(f"### 🔮 Horizons de Production Estimés — {nom_modele_court}")
-        
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             afficher_carte_metrique("Production Moyenne Estimée", float(np.mean(y_predit)), "kW")
