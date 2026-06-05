@@ -86,9 +86,9 @@ def charger_ressources():
 
     # Dictionnaire calé sur vos fichiers réels (avec accents)
     fichiers = {
-        "arx": "modèle_arx.pkl",
-        "mlp": "modèle_mlp.pkl",
-        "anfis": "modèle_anfis.pkl",
+        "arx": "model_arx.pkl",
+        "mlp": "model_mlp.pkl",
+        "anfis": "model_anfis.pkl",
     }
     
     for cle, chemin in fichiers.items():
@@ -104,8 +104,8 @@ def charger_ressources():
     try:
         from tensorflow.keras.models import load_model
         fichiers_h5 = {
-            "gru": "modèle_gru.h5",
-            "lstm": "modèle_lstm.h5",
+            "gru": "model_gru.h5",
+            "lstm": "model_lstm.h5",
         }
         for cle, chemin in fichiers_h5.items():
             if os.path.exists(chemin):
