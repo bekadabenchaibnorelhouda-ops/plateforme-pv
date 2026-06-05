@@ -247,6 +247,12 @@ def charger_donnees(source) -> pd.DataFrame | None:
     except Exception as e:
         st.error(f"❌ Impossible de lire le fichier : {e}")
         return None
+        # Étape de correction pour correspondre exactement aux attentes des modèles
+df = df.rename(columns={
+    'Temp_C': 'Température',
+    'Hum_%': 'Humidité',
+    'LDR_Raw': 'Éclairage'
+})
 
 
 def verifier_colonnes_meteo(df: pd.DataFrame) -> bool:
