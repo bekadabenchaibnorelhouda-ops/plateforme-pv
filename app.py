@@ -121,11 +121,106 @@ elif page == "📂 Importation des Données":
     fichier = st.file_uploader("Chargez votre fichier :", type=["xlsx", "csv"])
     if fichier:
         st.session_state.donnees = pd.read_csv(fichier) if fichier.name.endswith(".csv") else pd.read_excel(fichier)
-        st.success("Fichier chargé !")
-        st.write("### 📊 Aperçu des 10 premières lignes :")
-        st.dataframe(st.session_state.donnees.head(10))
-        st.write("### 📈 Statistiques descriptives :")
-        st.write(st.session_state.donnees.describe())
+        df = st.session_state.donnees
+        st.success(f"✅ Fichier chargé — {len(df)} lignes, {len(df.columns)} colonnes")
+
+        # --- Aperçu & stats ---
+        with st.expander("📋 Aperçu des 10 premières lignes", expanded=False):
+            st.dataframe(df.head(10))
+        with st.expander("📈 Statistiques descriptives", expanded=False):
+            st.write(df.describe())
+
+        st.markdown("---")
+        st.markdown("## 📉 Évolution des Variables dans le Temps")
+
+        # Colonnes numériques uniquement
+        cols_num = df.select_dtypes(include=[np.number]).columns.tolist()
+
+        # Axe X : index ou colonne Heure/Date si disponible
+        if "Heure" in df.columns:
+            x_axis = df["Heure"].astype(str)
+            x_label = "Heure"
+        elif "Date" in df.columns:
+            x_axis = df["Date"].astype(str)
+            x_label = "Date"
+        else:
+            x_axis = df.index
+            x_label = "Index"
+
+        # Couleurs par variable
+        couleurs = {
+            "Temp_C":       "#E74C3C",
+            "Hum_%":        "#3498DB",
+            "LDR_Raw":      "#F39C12",
+            "Puissance_mW": "#2ECC71",
+            "Tension_V":    "#9B59B6",
+            "Courant_mA":   "#1ABC9C",
+        }
+
+        # Noms lisibles
+        noms_lisibles = {
+            "Temp_C":       "Température (°C)",
+            "Hum_%":        "Humidité (%)",
+            "LDR_Raw":      "Éclairement LDR",
+            "Puissance_mW": "Puissance (mW)",
+            "Tension_V":    "Tension (V)",
+            "Courant_mA":   "Courant (mA)",
+        }
+
+        # Affichage 2 colonnes de graphes
+        cols_a_afficher = [c for c in cols_num if c in noms_lisibles]
+        if not cols_a_afficher:
+            cols_a_afficher = cols_num  # fallback : toutes les colonnes numériques
+
+        paires = [cols_a_afficher[i:i+2] for i in range(0, len(cols_a_afficher), 2)]
+
+        for paire in paires:
+            gcols = st.columns(len(paire))
+            for idx, col_name in enumerate(paire):
+                couleur = couleurs.get(col_name, "#FF6B2B")
+                nom     = noms_lisibles.get(col_name, col_name)
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=x_axis,
+                    y=df[col_name],
+                    mode="lines",
+                    name=nom,
+                    line=dict(color=couleur, width=1.5),
+                    fill="tozeroy",
+                    fillcolor=couleur.replace(")", ", 0.08)").replace("rgb", "rgba") if "rgb" in couleur else couleur + "14"
+                ))
+                fig.update_layout(
+                    title=f"📊 {nom}",
+                    xaxis_title=x_label,
+                    yaxis_title=nom,
+                    template="plotly_white",
+                    height=300,
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    showlegend=False
+                )
+                gcols[idx].plotly_chart(fig, use_container_width=True)
+
+        # Matrice de corrélation
+        st.markdown("---")
+        st.markdown("## 🔗 Matrice de Corrélation entre les Variables")
+        import plotly.figure_factory as ff
+        corr = df[cols_num].corr().round(2)
+        fig_corr = go.Figure(data=go.Heatmap(
+            z=corr.values,
+            x=corr.columns.tolist(),
+            y=corr.columns.tolist(),
+            colorscale="RdBu",
+            zmid=0,
+            text=corr.values,
+            texttemplate="%{text}",
+            showscale=True
+        ))
+        fig_corr.update_layout(
+            title="Corrélation entre les variables",
+            template="plotly_white",
+            height=450
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
 
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Évaluation & Performance")
