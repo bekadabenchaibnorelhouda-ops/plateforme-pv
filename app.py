@@ -55,7 +55,7 @@ if page == "🏠 Accueil & Présentation":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("### À propos du projet")
-        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions.")
+        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
 
     st.markdown("---")
     st.markdown("## 📌 Description du Projet")
@@ -176,7 +176,8 @@ elif page == "📂 Importation des Données":
 
         # Échantillonnage pour ne pas surcharger les barres (max 200 points)
         df_plot = df.iloc[::max(1, len(df)//200)].reset_index(drop=True)
-        x_plot = df_plot["Heure"].astype(str) if "Heure" in df_plot.columns else df_plot.index.astype(str)
+        x_plot = list(range(1, len(df_plot) + 1))  # numéros de mesure : 1, 2, 3...
+        x_label = "N° de mesure"
 
         for paire in paires:
             gcols = st.columns(len(paire))
