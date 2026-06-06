@@ -55,7 +55,7 @@ if page == "🏠 Accueil & Présentation":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("### À propos du projet")
-        st.write("Plateforme de prédiction énergétique utilisant des modèles avancés (IA/Fuzzy) pour les systèmes photovoltaïques.")
+        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
 
     st.markdown("---")
     st.markdown("## 📌 Description du Projet")
@@ -174,20 +174,23 @@ elif page == "📂 Importation des Données":
 
         paires = [cols_a_afficher[i:i+2] for i in range(0, len(cols_a_afficher), 2)]
 
+        # Échantillonnage pour ne pas surcharger les barres (max 200 points)
+        df_plot = df.iloc[::max(1, len(df)//200)].reset_index(drop=True)
+        x_plot = df_plot["Heure"].astype(str) if "Heure" in df_plot.columns else df_plot.index.astype(str)
+
         for paire in paires:
             gcols = st.columns(len(paire))
             for idx, col_name in enumerate(paire):
                 line_color, fill_color = couleurs.get(col_name, ("#FF6B2B", "rgba(255,107,43,0.08)"))
-                nom     = noms_lisibles.get(col_name, col_name)
+                nom = noms_lisibles.get(col_name, col_name)
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=x_axis,
-                    y=df[col_name],
-                    mode="lines",
+                fig.add_trace(go.Bar(
+                    x=x_plot,
+                    y=df_plot[col_name],
                     name=nom,
-                    line=dict(color=line_color, width=1.5),
-                    fill="tozeroy",
-                    fillcolor=fill_color
+                    marker_color=line_color,
+                    marker_line_width=0,
+                    opacity=0.85
                 ))
                 fig.update_layout(
                     title=f"📊 {nom}",
@@ -196,31 +199,10 @@ elif page == "📂 Importation des Données":
                     template="plotly_white",
                     height=300,
                     margin=dict(l=20, r=20, t=40, b=20),
-                    showlegend=False
+                    showlegend=False,
+                    bargap=0.05
                 )
                 gcols[idx].plotly_chart(fig, use_container_width=True)
-
-        # Matrice de corrélation
-        st.markdown("---")
-        st.markdown("## 🔗 Matrice de Corrélation entre les Variables")
-        import plotly.figure_factory as ff
-        corr = df[cols_num].corr().round(2)
-        fig_corr = go.Figure(data=go.Heatmap(
-            z=corr.values,
-            x=corr.columns.tolist(),
-            y=corr.columns.tolist(),
-            colorscale="RdBu",
-            zmid=0,
-            text=corr.values,
-            texttemplate="%{text}",
-            showscale=True
-        ))
-        fig_corr.update_layout(
-            title="Corrélation entre les variables",
-            template="plotly_white",
-            height=450
-        )
-        st.plotly_chart(fig_corr, use_container_width=True)
 
 elif page == "📊 Évaluation & Graphiques":
     st.title("📊 Évaluation & Performance")
