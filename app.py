@@ -55,7 +55,7 @@ if page == "🏠 Accueil & Présentation":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("### À propos du projet")
-        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
+        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions.")
 
     st.markdown("---")
     st.markdown("## 📌 Description du Projet")
