@@ -147,14 +147,14 @@ elif page == "📂 Importation des Données":
             x_axis = df.index
             x_label = "Index"
 
-        # Couleurs par variable
+        # Couleurs par variable (line_color, fill_color)
         couleurs = {
-            "Temp_C":       "#E74C3C",
-            "Hum_%":        "#3498DB",
-            "LDR_Raw":      "#F39C12",
-            "Puissance_mW": "#2ECC71",
-            "Tension_V":    "#9B59B6",
-            "Courant_mA":   "#1ABC9C",
+            "Temp_C":       ("#E74C3C", "rgba(231,76,60,0.08)"),
+            "Hum_%":        ("#3498DB", "rgba(52,152,219,0.08)"),
+            "LDR_Raw":      ("#F39C12", "rgba(243,156,18,0.08)"),
+            "Puissance_mW": ("#2ECC71", "rgba(46,204,113,0.08)"),
+            "Tension_V":    ("#9B59B6", "rgba(155,89,182,0.08)"),
+            "Courant_mA":   ("#1ABC9C", "rgba(26,188,156,0.08)"),
         }
 
         # Noms lisibles
@@ -177,7 +177,7 @@ elif page == "📂 Importation des Données":
         for paire in paires:
             gcols = st.columns(len(paire))
             for idx, col_name in enumerate(paire):
-                couleur = couleurs.get(col_name, "#FF6B2B")
+                line_color, fill_color = couleurs.get(col_name, ("#FF6B2B", "rgba(255,107,43,0.08)"))
                 nom     = noms_lisibles.get(col_name, col_name)
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
@@ -185,9 +185,9 @@ elif page == "📂 Importation des Données":
                     y=df[col_name],
                     mode="lines",
                     name=nom,
-                    line=dict(color=couleur, width=1.5),
+                    line=dict(color=line_color, width=1.5),
                     fill="tozeroy",
-                    fillcolor=couleur.replace(")", ", 0.08)").replace("rgb", "rgba") if "rgb" in couleur else couleur + "14"
+                    fillcolor=fill_color
                 ))
                 fig.update_layout(
                     title=f"📊 {nom}",
