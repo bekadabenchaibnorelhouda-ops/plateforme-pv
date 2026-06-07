@@ -239,10 +239,15 @@ elif page == "📊 Évaluation & Graphiques":
         else:
             y_reel = df_eval.iloc[:, -1].values[:200]
 
+        # Dénormalisation : ramener les valeurs à l'échelle réelle (max ~480 mW)
+        puissance_max_reel = 480.0
+        y_reel_denorm = y_reel * puissance_max_reel if y_reel.max() <= 1.0 else y_reel
+
         # Génération d'une prédiction simulée propre à chaque modèle
         np.random.seed(bruit_params[nom_court]["seed"])
-        bruit = np.random.normal(0, bruit_params[nom_court]["scale"], size=len(y_reel))
-        y_pred_simule = y_reel * stats["R2"] + bruit * np.std(y_reel)
+        bruit = np.random.normal(0, bruit_params[nom_court]["scale"], size=len(y_reel_denorm))
+        y_pred_simule = y_reel_denorm * stats["R2"] + bruit * np.std(y_reel_denorm)
+        y_reel = y_reel_denorm
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(y=y_reel, name="Valeur Réelle", line=dict(color="#1f77b4", width=1.5)))
@@ -251,7 +256,7 @@ elif page == "📊 Évaluation & Graphiques":
             title=f"Valeurs Réelles vs Prédiction — Modèle {nom_court}",
             xaxis_title="Échantillons",
             yaxis_title="Puissance (mW)",
-            yaxis=dict(range=[0, 500]),
+            yaxis=dict(range=[0, 300]),
             template="plotly_white",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
