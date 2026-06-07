@@ -55,7 +55,7 @@ if page == "🏠 Accueil & Présentation":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("### À propos du projet")
-        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions.")
+        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
 
     st.markdown("---")
     st.markdown("## 📌 Description du Projet")
@@ -72,7 +72,7 @@ if page == "🏠 Accueil & Présentation":
     """)
 
     st.markdown("---")
-    st.markdown("## 🧠 Les Modèles utilisés")
+    st.markdown("## 🧠 Les Modèles d'IA utilisés")
 
     col_m1, col_m2 = st.columns(2)
     with col_m1:
@@ -233,7 +233,11 @@ elif page == "📊 Évaluation & Graphiques":
         c4.markdown(f'<div class="carte-metrique"><div class="valeur">{stats["R2"]:.4f}</div><div class="label">R²</div></div>', unsafe_allow_html=True)
 
         # Graphique avec courbe différente selon le modèle
-        y_reel = st.session_state.donnees.iloc[:, -1].values[:200]
+        df_eval = st.session_state.donnees
+        if "Puissance_mW" in df_eval.columns:
+            y_reel = df_eval["Puissance_mW"].values[:200]
+        else:
+            y_reel = df_eval.iloc[:, -1].values[:200]
 
         # Génération d'une prédiction simulée propre à chaque modèle
         np.random.seed(bruit_params[nom_court]["seed"])
