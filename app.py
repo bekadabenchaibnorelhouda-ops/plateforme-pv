@@ -176,7 +176,7 @@ elif page == "📂 Importation des Données":
 
         # Échantillonnage pour ne pas surcharger les barres (max 200
         points)
-        df_plot = df.iloc[::max(1, len(df)//200)].reset_index(drop=True)
+        df_plot = df.iloc[::max(1, len(df)//500)].reset_index(drop=True)
         x_plot = list(range(1, len(df_plot) + 1))  # numéros de mesure : 1, 2, 3...
         x_label = "N° de mesure"
 
