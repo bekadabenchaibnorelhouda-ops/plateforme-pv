@@ -72,7 +72,7 @@ if page == "🏠 Accueil & Présentation":
     """)
 
     st.markdown("---")
-    st.markdown("## 🧠 Les Modèles d'IA utilisés")
+    st.markdown("## 🧠 Les Modèles utilisés")
 
     col_m1, col_m2 = st.columns(2)
     with col_m1:
