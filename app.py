@@ -174,7 +174,8 @@ elif page == "📂 Importation des Données":
 
         paires = [cols_a_afficher[i:i+2] for i in range(0, len(cols_a_afficher), 2)]
 
-        # Échantillonnage pour ne pas surcharger les barres (max 200 points)
+        # Échantillonnage pour ne pas surcharger les barres (max 200
+        points)
         df_plot = df.iloc[::max(1, len(df)//200)].reset_index(drop=True)
         x_plot = list(range(1, len(df_plot) + 1))  # numéros de mesure : 1, 2, 3...
         x_label = "N° de mesure"
@@ -235,7 +236,7 @@ elif page == "📊 Évaluation & Graphiques":
         # Graphique avec courbe différente selon le modèle
         df_eval = st.session_state.donnees
         if "Puissance_mW" in df_eval.columns:
-            y_reel = df_eval["Puissance_mW"].values[:200]
+            y_reel = df_eval["Puissance_mW"].values[:500]
         else:
             y_reel = df_eval.iloc[:, -1].values[:200]
 
