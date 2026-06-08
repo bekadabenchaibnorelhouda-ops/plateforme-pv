@@ -20,7 +20,7 @@ st.markdown("""
     .valeur { font-size: 1.8rem; font-weight: 700; color: #FF6B2B; }
     .label { font-size: 0.8rem; color: #495057; text-transform: uppercase; }
     .cadre-accueil { background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; }
-    .cadre-metrique-explication { background-color: #F0FFF4; border-left: 4px solid #2ECC71; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+    .cadre-metrique-explication { background-color: #EBF5FB; border-left: 4px solid #3498DB; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
