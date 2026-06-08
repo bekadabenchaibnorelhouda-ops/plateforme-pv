@@ -84,7 +84,7 @@ if page == "🏠 Accueil & Présentation":
     with col_m2:
         st.markdown("""
         - **ARX** (AutoRegressive with eXogenous inputs) : modèle linéaire classique basé sur les valeurs passées de la série.
-        - **ANFIS** (ici : Random Forest) : modèle ensembliste inspiré des systèmes neuro-flous, robuste et précis.
+        - **RF**(Random Forest) : approche ensembliste basée sur une multitude d'arbres de décision, reconnue pour sa forte robustesse et sa régularité de prédiction.
         """)
 
     st.markdown("---")
