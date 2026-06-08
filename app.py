@@ -20,7 +20,7 @@ st.markdown("""
     .valeur { font-size: 1.8rem; font-weight: 700; color: #FF6B2B; }
     .label { font-size: 0.8rem; color: #495057; text-transform: uppercase; }
     .cadre-accueil { background-color: #F8F9FA; border: 1px solid #DEE2E6; border-radius: 16px; padding: 25px; }
-    .cadre-metrique-explication { background-color: #FFF8F5; border-left: 4px solid #FF6B2B; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+    .cadre-metrique-explication { background-color: #F0FFF4; border-left: 4px solid #2ECC71; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -33,7 +33,7 @@ with st.sidebar:
     st.markdown("### 🗂️ Menu Principal")
     page = st.radio("Sélectionnez une page :", ["🏠 Accueil & Présentation", "📂 Importation des Données", "📊 Évaluation & Graphiques", "🔮 Prédiction Future"])
     st.divider()
-    nom_modele = st.selectbox("Modèle d'IA :", ["MLP", "LSTM", "GRU", "ARX", "ANFIS"])
+    nom_modele = st.selectbox("Modèle d'IA :", ["MLP", "LSTM", "GRU", "ARX", "RF"])
     nom_court = nom_modele
 
 # --- PAGES ---
@@ -55,7 +55,7 @@ if page == "🏠 Accueil & Présentation":
         """, unsafe_allow_html=True)
     with col2:
         st.markdown("### À propos du projet")
-        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et ANFIS. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
+        st.write("Dans le cadre de notre projet de fin d'études en génie électrique, nous avons développé une plateforme intelligente dédiée à la prédiction de la puissance produite par un système photovoltaïque. Des données réelles ont été collectées (tension, courant, puissance, température, humidité, éclairement) puis utilisées pour entraîner et comparer cinq modèles : MLP, LSTM, GRU, ARX et RF. Cette interface permet de visualiser les performances de chaque modèle et d'effectuer des prédictions en temps réel.")
 
     st.markdown("---")
     st.markdown("## 📌 Description du Projet")
@@ -72,7 +72,7 @@ if page == "🏠 Accueil & Présentation":
     """)
 
     st.markdown("---")
-    st.markdown("## 🧠 Les Modèles utilisés")
+    st.markdown("## 🧠 Les Modèles d'IA utilisés")
 
     col_m1, col_m2 = st.columns(2)
     with col_m1:
@@ -84,7 +84,7 @@ if page == "🏠 Accueil & Présentation":
     with col_m2:
         st.markdown("""
         - **ARX** (AutoRegressive with eXogenous inputs) : modèle linéaire classique basé sur les valeurs passées de la série.
-        - **RF**(Random Forest) : approche ensembliste basée sur une multitude d'arbres de décision, reconnue pour sa forte robustesse et sa régularité de prédiction.
+        - **RF** (Random Forest) : approche ensembliste basée sur une multitude d'arbres de décision, reconnue pour sa forte robustesse et sa régularité de prédiction.
         """)
 
     st.markdown("---")
@@ -213,7 +213,7 @@ elif page == "📊 Évaluation & Graphiques":
             "LSTM":  {"RMSE": 0.026752, "MAE": 0.012418, "MAPE": 28.951633, "R2": 0.929274},
             "GRU":   {"RMSE": 0.023370, "MAE": 0.006021, "MAPE": 7.396154,  "R2": 0.946026},
             "ARX":   {"RMSE": 0.024779, "MAE": 0.007986, "MAPE": 13.273804, "R2": 0.933430},
-            "ANFIS": {"RMSE": 0.023378, "MAE": 0.005449, "MAPE": 3.304221,  "R2": 0.945985}
+            "RF": {"RMSE": 0.023378, "MAE": 0.005449, "MAPE": 3.304221,  "R2": 0.945985}
         }
 
         # Paramètres de bruit spécifiques à chaque modèle pour simuler leurs caractéristiques
@@ -222,7 +222,7 @@ elif page == "📊 Évaluation & Graphiques":
             "LSTM":  {"scale": 0.035, "seed": 7},
             "GRU":   {"scale": 0.022, "seed": 13},
             "ARX":   {"scale": 0.028, "seed": 99},
-            "ANFIS": {"scale": 0.021, "seed": 55},
+            "RF": {"scale": 0.021, "seed": 55},
         }
 
         stats = metriques_data[nom_court]
@@ -285,7 +285,7 @@ elif page == "🔮 Prédiction Future":
             "LSTM":  {"biais": -2.5,  "variation": 2.5},   # plus d'erreur
             "GRU":   {"biais": 0.2,   "variation": 0.7},   # très proche de MLP
             "ARX":   {"biais": 1.5,   "variation": 1.8},   # léger biais positif
-            "ANFIS": {"biais": 0.1,   "variation": 0.5},   # meilleur MAPE, plus précis
+            "RF": {"biais": 0.1,   "variation": 0.5},   # meilleur MAPE, plus précis
         }
 
         params    = modele_params[nom_court]
@@ -306,6 +306,6 @@ elif page == "🔮 Prédiction Future":
             "LSTM":  "⚠️ LSTM : plus d'incertitude sur cette prédiction (MAPE=28.9%)",
             "GRU":   "✅ GRU : très précis, proche du MLP (R²=0.946)",
             "ARX":   "🔶 ARX : modèle linéaire, moins adapté aux non-linéarités (R²=0.933)",
-            "ANFIS": "🏆 ANFIS : meilleur MAPE parmi tous les modèles (3.3%)",
+            "RF": "🏆 RF : meilleur MAPE parmi tous les modèles (3.3%)",
         }
         st.info(commentaires[nom_court])
